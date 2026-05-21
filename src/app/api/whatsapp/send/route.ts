@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { db } from '@/db'
+import { conversations, contacts, messages, whatsappConfig } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { auth } from '@/auth'
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -16,23 +19,18 @@ import {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
+    const session = await auth()
+    const userId = session?.user?.id
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    // Per-user rate limit. Bucket key is scoped to this route so
-    // `/broadcast` has an independent budget.
-    const limit = checkRateLimit(`send:${user.id}`, RATE_LIMITS.send)
+    // Per-user rate limit.
+    const limit = checkRateLimit(`send:${userId}`, RATE_LIMITS.send)
     if (!limit.success) {
       return rateLimitResponse(limit)
     }
@@ -69,15 +67,15 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch conversation and contact
-    const { data: conversation, error: convError } = await supabase
-      .from('conversations')
-      .select('*, contact:contacts(*)')
-      .eq('id', conversation_id)
-      .eq('user_id', user.id)
-      .single()
+    // Fetch conversation and contact using Drizzle
+    const conversation = await db.query.conversations.findFirst({
+      where: and(eq(conversations.id, conversation_id), eq(conversations.userId, userId)),
+      with: {
+        contact: true
+      }
+    })
 
-    if (convError || !conversation) {
+    if (!conversation) {
       return NextResponse.json(
         { error: 'Conversation not found' },
         { status: 404 }
@@ -101,186 +99,161 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
+    // Fetch WhatsApp config using Drizzle
+    const config = await db.query.whatsappConfig.findFirst({
+      where: eq(whatsappConfig.userId, userId)
+    })
 
-    if (configError || !config) {
+    if (!config) {
       return NextResponse.json(
         { error: 'WhatsApp not configured. Please set up your WhatsApp integration first.' },
         { status: 400 }
       )
     }
 
-    const accessToken = decrypt(config.access_token)
-
-    // Self-heal legacy CBC-encrypted tokens. Fire-and-forget: we
-    // return from the send without waiting, so a failed upgrade just
-    // means the next send tries again. The upgrade is idempotent —
-    // concurrent sends both produce valid GCM ciphertexts of the same
-    // plaintext, last write wins.
-    if (isLegacyFormat(config.access_token)) {
-      void supabase
-        .from('whatsapp_config')
-        .update({ access_token: encrypt(accessToken) })
-        .eq('id', config.id)
-        .then(({ error }) => {
-          if (error) {
-            console.warn(
-              '[whatsapp/send] access_token GCM upgrade failed:',
-              error.message,
-            )
-          }
-        })
+    // Self-heal legacy CBC-encrypted tokens for Meta provider
+    if (config.providerType === 'meta' && config.accessToken && isLegacyFormat(config.accessToken)) {
+      const accessToken = decrypt(config.accessToken)
+      await db
+        .update(whatsappConfig)
+        .set({ accessToken: encrypt(accessToken) })
+        .where(eq(whatsappConfig.id, config.id))
     }
 
-    // Resolve the reply target (if any) to its Meta message_id, which is
-    // what `context.message_id` on the outgoing Meta payload needs. The
-    // parent must belong to this same conversation — otherwise a caller
-    // could quote messages they can't see by guessing UUIDs.
+    // Get WhatsApp provider from factory
+    const provider = await WhatsAppProviderFactory.getProvider(userId)
+    if (!provider) {
+      return NextResponse.json(
+        { error: 'Failed to initialize WhatsApp provider. Please check your credentials.' },
+        { status: 400 }
+      )
+    }
+
+    // Resolve reply targets
     let contextMessageId: string | undefined
     if (reply_to_message_id) {
-      const { data: parent, error: parentError } = await supabase
-        .from('messages')
-        .select('message_id, conversation_id')
-        .eq('id', reply_to_message_id)
-        .eq('conversation_id', conversation_id)
-        .maybeSingle()
+      const parent = await db.query.messages.findFirst({
+        where: and(
+          eq(messages.id, reply_to_message_id),
+          eq(messages.conversationId, conversation_id)
+        )
+      })
 
-      if (parentError || !parent) {
+      if (!parent) {
         return NextResponse.json(
           { error: 'reply_to_message_id not found in this conversation' },
           { status: 400 }
         )
       }
-      if (!parent.message_id) {
-        // Parent never reached Meta (still in 'sending' or 'failed') — we
-        // can't quote it on WhatsApp. Send without context rather than
-        // dropping the message entirely.
+      if (!parent.messageId) {
         console.warn(
-          '[whatsapp/send] reply target has no Meta message_id; sending without context'
+          '[whatsapp/send] reply target has no WhatsApp message_id; sending without context'
         )
       } else {
-        contextMessageId = parent.message_id
+        contextMessageId = parent.messageId
       }
     }
 
-    // Send via Meta API — retry with phone-number variants if Meta rejects
-    // with "recipient not in allowed list" (common in sandbox / when a
-    // number was registered with/without a trunk 0). If an alternate
-    // format succeeds, we persist it back to the contact row so the
-    // next send goes through on the first attempt.
     let waMessageId = ''
     let workingPhone = sanitizedPhone
 
     const attempt = async (phone: string): Promise<string> => {
       if (message_type === 'template') {
-        const result = await sendTemplateMessage({
-          phoneNumberId: config.phone_number_id,
-          accessToken,
-          to: phone,
-          templateName: template_name,
-          params: template_params || [],
-          contextMessageId,
-        })
+        const result = await provider.sendTemplateMessage(
+          phone,
+          template_name,
+          'en_US', // default language
+          template_params || [],
+          contextMessageId
+        )
         return result.messageId
       }
-      const result = await sendTextMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
-        to: phone,
-        text: content_text,
-        contextMessageId,
-      })
+      const result = await provider.sendTextMessage(
+        phone,
+        content_text,
+        contextMessageId
+      )
       return result.messageId
     }
 
     try {
-      const variants = phoneVariants(sanitizedPhone)
-      let lastError: unknown = null
+      if (config.providerType === 'meta') {
+        const variants = phoneVariants(sanitizedPhone)
+        let lastError: unknown = null
 
-      for (const variant of variants) {
-        try {
-          waMessageId = await attempt(variant)
-          workingPhone = variant
-          lastError = null
-          break
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          // Only retry when the failure is specifically that the
-          // recipient isn't in Meta's allowed list. Any other error
-          // (bad token, invalid template, etc.) bubbles up immediately.
-          if (!isRecipientNotAllowedError(message)) {
-            throw err
+        for (const variant of variants) {
+          try {
+            waMessageId = await attempt(variant)
+            workingPhone = variant
+            lastError = null
+            break
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            if (!isRecipientNotAllowedError(message)) {
+              throw err
+            }
+            lastError = err
+            console.warn(`[whatsapp/send] variant "${variant}" rejected by Meta, trying next…`)
           }
-          lastError = err
-          console.warn(`[whatsapp/send] variant "${variant}" rejected by Meta, trying next…`)
         }
-      }
 
-      if (lastError) throw lastError
+        if (lastError) throw lastError
+      } else {
+        // Evolution API/Other providers don't need phone variants trial
+        waMessageId = await attempt(sanitizedPhone)
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown Meta API error'
-      console.error('Meta API send failed for all variants:', message)
+      const message = err instanceof Error ? err.message : 'Unknown WhatsApp API error'
+      console.error('WhatsApp API send failed:', message)
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: `WhatsApp API error: ${message}` },
         { status: 502 }
       )
     }
 
-    // If a non-original variant succeeded, update the contact so future
-    // sends go straight through. sanitizePhoneForMeta on workingPhone
-    // will yield workingPhone itself, so re-storing preserves it.
-    if (workingPhone !== sanitizedPhone) {
+    // Auto-correct phone number in DB if variant succeeded (only for Meta)
+    if (workingPhone !== sanitizedPhone && config.providerType === 'meta') {
       console.log(
         `[whatsapp/send] Auto-corrected contact phone: ${sanitizedPhone} → ${workingPhone}`
       )
-      await supabase
-        .from('contacts')
-        .update({ phone: workingPhone })
-        .eq('id', contact.id)
+      await db
+        .update(contacts)
+        .set({ phone: workingPhone })
+        .where(eq(contacts.id, contact.id))
     }
 
-    // Insert message into DB — field names MUST match the messages schema
-    // (see supabase/migrations/001_initial_schema.sql):
-    //   conversation_id, sender_type, content_type, content_text,
-    //   media_url, template_name, message_id, status, created_at
-    const { data: messageRecord, error: msgError } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id,
-        sender_type: 'agent',
-        content_type: message_type,
-        content_text: content_text || null,
-        media_url: media_url || null,
-        template_name: template_name || null,
-        message_id: waMessageId,
+    // Insert message into DB using Drizzle
+    const [messageRecord] = await db
+      .insert(messages)
+      .values({
+        conversationId: conversation_id,
+        senderType: 'agent',
+        contentType: message_type,
+        contentText: content_text || null,
+        mediaUrl: media_url || null,
+        templateName: template_name || null,
+        messageId: waMessageId,
         status: 'sent',
-        reply_to_message_id: reply_to_message_id || null,
+        replyToMessageId: reply_to_message_id || null,
       })
-      .select()
-      .single()
+      .returning()
 
-    if (msgError) {
-      console.error('Error inserting sent message:', msgError)
+    if (!messageRecord) {
       return NextResponse.json(
-        { error: `Message sent to Meta but failed to save to DB: ${msgError.message}` },
+        { error: 'Message sent to WhatsApp but failed to save to DB' },
         { status: 500 }
       )
     }
 
-    // Update conversation
-    await supabase
-      .from('conversations')
-      .update({
-        last_message_text: content_text || `[${message_type}]`,
-        last_message_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+    // Update conversation using Drizzle
+    await db
+      .update(conversations)
+      .set({
+        lastMessageText: content_text || `[${message_type}]`,
+        lastMessageAt: new Date(),
+        updatedAt: new Date(),
       })
-      .eq('id', conversation_id)
+      .where(eq(conversations.id, conversation_id))
 
     return NextResponse.json({
       success: true,

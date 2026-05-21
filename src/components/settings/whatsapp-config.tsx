@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { getWhatsAppConfig } from '@/app/actions/inbox';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,6 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
 export function WhatsAppConfig() {
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -62,19 +61,17 @@ export function WhatsAppConfig() {
   const fetchConfig = useCallback(async (userId: string) => {
     setLoading(true);
     try {
-      // Load form values from Supabase (shows what's in DB)
-      const { data, error } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      // Load form values via Server Action
+      const res = await getWhatsAppConfig();
 
-      if (error) {
-        console.error('Failed to load config row:', error);
+      if (res.error) {
+        console.error('Failed to load config row:', res.error);
       }
 
+      const data = res.data;
+
       if (data) {
-        setConfig(data);
+        setConfig(data as any);
         setPhoneNumberId(data.phone_number_id || '');
         setWabaId(data.waba_id || '');
         setAccessToken(MASKED_TOKEN);
@@ -119,7 +116,7 @@ export function WhatsAppConfig() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;

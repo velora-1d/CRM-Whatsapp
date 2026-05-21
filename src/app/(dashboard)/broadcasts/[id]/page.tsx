@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getBroadcastById, deleteBroadcast } from '@/app/actions/broadcasts';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -146,8 +146,8 @@ export default function BroadcastDetailPage() {
   const router = useRouter();
   const broadcastId = params.id as string;
 
-  const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
-  const [recipients, setRecipients] = useState<BroadcastRecipient[]>([]);
+  const [broadcast, setBroadcast] = useState<any | null>(null);
+  const [recipients, setRecipients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<RecipientStatus | 'all'>(
@@ -159,25 +159,13 @@ export default function BroadcastDetailPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const supabase = createClient();
-
-        const { data: bc, error: bcError } = await supabase
-          .from('broadcasts')
-          .select('*')
-          .eq('id', broadcastId)
-          .single();
-
-        if (bcError) throw bcError;
-        setBroadcast(bc);
-
-        const { data: recs, error: recsError } = await supabase
-          .from('broadcast_recipients')
-          .select('*, contact:contacts(*)')
-          .eq('broadcast_id', broadcastId)
-          .order('created_at', { ascending: false });
-
-        if (recsError) throw recsError;
-        setRecipients(recs ?? []);
+        const data = await getBroadcastById(broadcastId);
+        if (!data) {
+          setError('Broadcast tidak ditemukan');
+          return;
+        }
+        setBroadcast(data);
+        setRecipients((data.recipients ?? []) as any[]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load broadcast');
       } finally {
@@ -225,22 +213,15 @@ export default function BroadcastDetailPage() {
 
   async function handleDelete() {
     setDeleting(true);
-    const supabase = createClient();
-    // broadcast_recipients cascades on broadcasts.id (migration 001), so a
-    // single delete is sufficient — the aggregate trigger in migration 003
-    // is defined on broadcast_recipients but fires only on its own row
-    // changes, not on a cascaded drop of the parent row.
-    const { error: delErr } = await supabase
-      .from('broadcasts')
-      .delete()
-      .eq('id', broadcastId);
-    setDeleting(false);
-    if (delErr) {
-      toast.error(`Failed to delete: ${delErr.message}`);
-      return;
+    try {
+      await deleteBroadcast(broadcastId);
+      toast.success('Broadcast deleted');
+      router.push('/broadcasts');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete broadcast');
+    } finally {
+      setDeleting(false);
     }
-    toast.success('Broadcast deleted');
-    router.push('/broadcasts');
   }
 
   if (loading) {

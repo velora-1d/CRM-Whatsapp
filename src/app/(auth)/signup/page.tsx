@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { signUpUser } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,36 +23,31 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Password tidak cocok");
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+      setError("Password minimal harus 6 karakter");
       return;
     }
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const res = await signUpUser({
       email,
+      fullName,
       password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
     });
 
-    if (error) {
-      setError(error.message);
+    if (res.error) {
+      setError(res.error);
       setLoading(false);
       return;
     }
@@ -70,12 +65,10 @@ export default function SignupPage() {
               <CheckCircle className="h-6 w-6 text-violet-500" />
             </div>
             <CardTitle className="text-xl text-white">
-              Check your email
+              Pendaftaran Berhasil!
             </CardTitle>
             <CardDescription className="text-slate-400">
-              We&apos;ve sent a confirmation link to{" "}
-              <span className="text-white">{email}</span>. Please check your
-              inbox and click the link to verify your account.
+              Akun Anda telah berhasil dibuat. Silakan kembali ke halaman masuk untuk mengakses dashboard.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -84,7 +77,7 @@ export default function SignupPage() {
                 variant="outline"
                 className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               >
-                Back to sign in
+                Kembali untuk masuk
               </Button>
             </Link>
           </CardContent>
@@ -97,12 +90,14 @@ export default function SignupPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10">
-            <MessageSquare className="h-6 w-6 text-violet-500" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Vera CRM Logo"
+            className="mb-2 h-12 w-12 rounded-xl object-cover"
+          />
           <CardTitle className="text-xl text-white">Create account</CardTitle>
           <CardDescription className="text-slate-400">
-            Get started with CRM Template for WhatsApp
+            Get started with Vera CRM
           </CardDescription>
         </CardHeader>
         <CardContent>

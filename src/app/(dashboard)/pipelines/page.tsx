@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import {
+  getPipelines,
+  getPipelineStages,
+  getPipelineDeals,
+  createPipeline,
+  updateDealStage,
+} from "@/app/actions/pipelines";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
@@ -37,8 +43,6 @@ const SPEC_DEFAULT_STAGES = [
 ];
 
 export default function PipelinesPage() {
-  const supabase = createClient();
-
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
@@ -61,69 +65,46 @@ export default function PipelinesPage() {
   const seedAttempted = useRef(false);
 
   const loadPipelines = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("pipelines")
-      .select("*")
-      .order("created_at");
-    if (error) {
-      console.error("Failed to load pipelines:", error.message);
+    const res = await getPipelines();
+    if (res.error) {
+      console.error("Failed to load pipelines:", res.error);
       return [];
     }
-    return data ?? [];
-  }, [supabase]);
+    return (res.data ?? []) as Pipeline[];
+  }, []);
 
   const loadStages = useCallback(
     async (pipelineId: string) => {
-      const { data } = await supabase
-        .from("pipeline_stages")
-        .select("*")
-        .eq("pipeline_id", pipelineId)
-        .order("position");
-      return data ?? [];
+      const res = await getPipelineStages(pipelineId);
+      if (res.error) {
+        console.error("Failed to load stages:", res.error);
+        return [];
+      }
+      return (res.data ?? []) as PipelineStage[];
     },
-    [supabase],
+    [],
   );
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      const { data } = await supabase
-        .from("deals")
-        .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
-        .eq("pipeline_id", pipelineId)
-        .order("created_at", { ascending: false });
-      return (data ?? []) as Deal[];
+      const res = await getPipelineDeals(pipelineId);
+      if (res.error) {
+        console.error("Failed to load deals:", res.error);
+        return [];
+      }
+      return (res.data ?? []) as Deal[];
     },
-    [supabase],
+    [],
   );
 
   const seedDefaultPipeline = useCallback(async (): Promise<Pipeline | null> => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) return null;
-
-    const { data: pipeline, error } = await supabase
-      .from("pipelines")
-      .insert({ user_id: user.id, name: "Sales Pipeline" })
-      .select()
-      .single();
-
-    if (error || !pipeline) {
-      console.error("Failed to seed pipeline:", error?.message);
+    const res = await createPipeline("Sales Pipeline");
+    if (res.error || !res.data) {
+      console.error("Failed to seed pipeline:", res.error);
       return null;
     }
-
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
-      pipeline_id: pipeline.id,
-      name: s.name,
-      color: s.color,
-      position: s.position,
-    }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
-
-    return pipeline as Pipeline;
-  }, [supabase]);
+    return res.data as Pipeline;
+  }, []);
 
   // Initial load + seed-if-empty
   useEffect(() => {
@@ -205,16 +186,13 @@ export default function PipelinesPage() {
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
       );
-      const { error } = await supabase
-        .from("deals")
-        .update({ stage_id: newStageId })
-        .eq("id", dealId);
-      if (error) {
+      const res = await updateDealStage(dealId, newStageId);
+      if (res.error) {
         toast.error("Failed to move deal");
         refreshDeals();
       }
     },
-    [supabase, refreshDeals],
+    [refreshDeals],
   );
 
   const handleAddDeal = useCallback(
@@ -237,38 +215,17 @@ export default function PipelinesPage() {
     if (!name) return;
     setCreating(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) {
-      setCreating(false);
-      return;
-    }
+    const res = await createPipeline(name);
 
-    const { data: pipeline, error } = await supabase
-      .from("pipelines")
-      .insert({ user_id: user.id, name })
-      .select()
-      .single();
-
-    if (error || !pipeline) {
+    if (res.error || !res.data) {
       toast.error("Failed to create pipeline");
       setCreating(false);
       return;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
-      pipeline_id: pipeline.id,
-      name: s.name,
-      color: s.color,
-      position: s.position,
-    }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
-
     setNewPipelineName("");
     setNewPipelineOpen(false);
-    setSelectedPipelineId(pipeline.id);
+    setSelectedPipelineId(res.data.id);
     await refreshPipelines();
     setCreating(false);
     toast.success("Pipeline created");

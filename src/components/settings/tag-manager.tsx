@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Plus, X, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { getTags, createTag, deleteTag } from '@/app/actions/contacts';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,6 @@ const PRESET_COLORS = [
 ];
 
 export function TagManager() {
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -58,17 +57,12 @@ export function TagManager() {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('tags')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setTags(data || []);
-    } catch (err) {
+      const res = await getTags();
+      if (res.error) throw new Error(res.error);
+      setTags((res.data as Tag[]) || []);
+    } catch (err: any) {
       console.error('Failed to fetch tags:', err);
-      toast.error('Failed to load tags');
+      toast.error(err.message || 'Failed to load tags');
     } finally {
       setLoading(false);
     }
@@ -87,24 +81,17 @@ export function TagManager() {
         return;
       }
 
-      const { error } = await supabase
-        .from('tags')
-        .insert({
-          user_id: user.id,
-          name: newTagName.trim(),
-          color: selectedColor,
-        });
-
-      if (error) throw error;
+      const res = await createTag(newTagName.trim(), selectedColor);
+      if (res.error) throw new Error(res.error);
 
       toast.success('Tag created successfully');
       setDialogOpen(false);
       setNewTagName('');
       setSelectedColor(PRESET_COLORS[3].value);
       if (user) await fetchTags(user.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Create error:', err);
-      toast.error('Failed to create tag');
+      toast.error(err.message || 'Failed to create tag');
     } finally {
       setSaving(false);
     }
@@ -120,20 +107,16 @@ export function TagManager() {
 
     try {
       setDeleting(true);
-      const { error } = await supabase
-        .from('tags')
-        .delete()
-        .eq('id', tagToDelete.id);
-
-      if (error) throw error;
+      const res = await deleteTag(tagToDelete.id);
+      if (res.error) throw new Error(res.error);
 
       toast.success('Tag deleted');
       setTags((prev) => prev.filter((t) => t.id !== tagToDelete.id));
       setDeleteDialogOpen(false);
       setTagToDelete(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete error:', err);
-      toast.error('Failed to delete tag');
+      toast.error(err.message || 'Failed to delete tag');
     } finally {
       setDeleting(false);
     }

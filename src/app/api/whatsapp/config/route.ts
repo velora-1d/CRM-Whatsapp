@@ -1,47 +1,31 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
+import { db } from '@/db'
+import { whatsappConfig } from '@/db/schema'
+import { eq } from 'drizzle-orm'
+import { auth } from '@/auth'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory'
+import { MetaWhatsAppProvider } from '@/lib/whatsapp/meta-provider'
+import { EvolutionWhatsAppProvider } from '@/lib/whatsapp/evolution-provider'
 
 /**
  * GET /api/whatsapp/config
  *
  * Used by the "Test API Connection" button and by the page to check
- * whether the saved config is healthy. Returns 200 in all non-auth cases
- * so the UI can render an appropriate message rather than show a 500.
- *
- * Response shape:
- *   { connected: true,  phone_info: {...} }
- *   { connected: false, reason: 'no_config',        message: '...' }
- *   { connected: false, reason: 'token_corrupted',  message: '...', needs_reset: true }
- *   { connected: false, reason: 'meta_api_error',   message: '...' }
+ * whether the saved config is healthy. Returns 200 in all non-auth cases.
  */
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const session = await auth()
+    const userId = session?.user?.id
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token, status')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (configError) {
-      console.error('Error fetching whatsapp_config:', configError)
-      return NextResponse.json(
-        { connected: false, reason: 'db_error', message: 'Failed to fetch configuration' },
-        { status: 200 }
-      )
-    }
+    const config = await db.query.whatsappConfig.findFirst({
+      where: eq(whatsappConfig.userId, userId)
+    })
 
     if (!config) {
       return NextResponse.json(
@@ -54,11 +38,17 @@ export async function GET() {
       )
     }
 
-    // Try to decrypt the stored token with the current ENCRYPTION_KEY.
-    // If this fails, the key changed (or was never consistent across envs).
-    let accessToken: string
+    // Try to decrypt the stored tokens.
     try {
-      accessToken = decrypt(config.access_token)
+      if (config.providerType === 'evolution') {
+        if (config.evolutionInstanceToken) {
+          decrypt(config.evolutionInstanceToken)
+        }
+      } else {
+        if (config.accessToken) {
+          decrypt(config.accessToken)
+        }
+      }
     } catch (err) {
       console.error('[whatsapp/config GET] Token decryption failed:', err)
       return NextResponse.json(
@@ -67,31 +57,43 @@ export async function GET() {
           reason: 'token_corrupted',
           needs_reset: true,
           message:
-            'The stored access token cannot be decrypted with the current ENCRYPTION_KEY. This usually means the key changed, or it differs between environments (local vs Hostinger vs Vercel). Click "Reset Configuration" below, then re-save.',
+            'The stored access token cannot be decrypted with the current ENCRYPTION_KEY. Click "Reset Configuration" below, then re-save.',
         },
         { status: 200 }
       )
     }
 
-    // Validate credentials against Meta
-    try {
-      const phoneInfo = await verifyPhoneNumber({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
-      })
-      return NextResponse.json({ connected: true, phone_info: phoneInfo })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown Meta API error'
-      console.error('[whatsapp/config GET] Meta API verification failed:', message)
+    // Initialize provider and verify connection status
+    const provider = await WhatsAppProviderFactory.getProvider(userId)
+    if (!provider) {
       return NextResponse.json(
         {
           connected: false,
-          reason: 'meta_api_error',
-          message: `Meta API rejected the credentials: ${message}`,
+          reason: 'failed_init',
+          message: 'Failed to initialize active WhatsApp provider. Please re-check your configuration.',
         },
         { status: 200 }
       )
     }
+
+    const isConnected = await provider.verifyCredentials()
+    if (!isConnected) {
+      return NextResponse.json(
+        {
+          connected: false,
+          reason: 'api_verification_failed',
+          message: 'WhatsApp API rejected the credentials. Please verify your instance or token.',
+        },
+        { status: 200 }
+      )
+    }
+
+    return NextResponse.json({
+      connected: true,
+      provider_type: config.providerType,
+      phone_info: config.providerType === 'meta' ? { id: config.phoneNumberId } : null,
+      instance_name: config.providerType === 'evolution' ? config.evolutionInstanceName : null,
+    })
   } catch (error) {
     console.error('Error in WhatsApp config GET:', error)
     return NextResponse.json(
@@ -105,116 +107,133 @@ export async function GET() {
  * POST /api/whatsapp/config
  *
  * Saves or updates the WhatsApp config for the authenticated user.
- * Verifies credentials with Meta first, then encrypts and stores.
+ * Verifies credentials first, then encrypts and stores.
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
+    const session = await auth()
+    const userId = session?.user?.id
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { phone_number_id, waba_id, access_token, verify_token } = body
+    const {
+      provider_type = 'meta',
+      phone_number_id,
+      waba_id,
+      access_token,
+      verify_token,
+      evolution_instance_name,
+      evolution_instance_token,
+    } = body
 
-    if (!access_token || !phone_number_id) {
+    if (provider_type === 'meta') {
+      if (!access_token || !phone_number_id) {
+        return NextResponse.json(
+          { error: 'access_token and phone_number_id are required for Meta provider' },
+          { status: 400 }
+        )
+      }
+    } else if (provider_type === 'evolution') {
+      if (!evolution_instance_name || !evolution_instance_token) {
+        return NextResponse.json(
+          { error: 'evolution_instance_name and evolution_instance_token are required for Evolution provider' },
+          { status: 400 }
+        )
+      }
+    } else {
       return NextResponse.json(
-        { error: 'access_token and phone_number_id are required' },
+        { error: 'Invalid provider_type. Allowed: meta, evolution' },
         { status: 400 }
       )
     }
 
-    // Verify credentials with Meta BEFORE saving
-    let phoneInfo
+    // Verify credentials BEFORE saving
+    let isConnected = false
     try {
-      phoneInfo = await verifyPhoneNumber({
-        phoneNumberId: phone_number_id,
-        accessToken: access_token,
-      })
+      if (provider_type === 'meta') {
+        const provider = new MetaWhatsAppProvider(phone_number_id, access_token)
+        isConnected = await provider.verifyCredentials()
+      } else {
+        const provider = new EvolutionWhatsAppProvider(evolution_instance_name, evolution_instance_token)
+        isConnected = await provider.verifyCredentials()
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown Meta API error'
-      console.error('Meta API verification failed during save:', message)
+      const message = err instanceof Error ? err.message : 'WhatsApp API error'
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: `WhatsApp API error: ${message}` },
         { status: 400 }
       )
     }
 
-    // Encrypt sensitive tokens before storing
-    let encryptedAccessToken: string
-    let encryptedVerifyToken: string | null
+    if (!isConnected) {
+      return NextResponse.json(
+        { error: 'Verification failed. Please check credentials or API endpoint.' },
+        { status: 400 }
+      )
+    }
+
+    // Encrypt sensitive tokens
+    let encryptedAccessToken: string | null = null
+    let encryptedVerifyToken: string | null = null
+    let encryptedEvoToken: string | null = null
+
     try {
-      encryptedAccessToken = encrypt(access_token)
-      encryptedVerifyToken = verify_token ? encrypt(verify_token) : null
+      if (provider_type === 'meta') {
+        encryptedAccessToken = encrypt(access_token)
+        encryptedVerifyToken = verify_token ? encrypt(verify_token) : null
+      } else {
+        encryptedEvoToken = encrypt(evolution_instance_token)
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown encryption error'
-      console.error('Encryption failed:', message)
+      console.error('Encryption failed:', err)
       return NextResponse.json(
         {
           error:
-            'Failed to encrypt token. Check that ENCRYPTION_KEY is a valid 64-character hex string in your environment variables.',
+            'Failed to encrypt token. Check that ENCRYPTION_KEY is a valid 64-character hex string in environment variables.',
         },
         { status: 500 }
       )
     }
 
-    // Upsert — overwrite any existing (possibly corrupted) config
-    const { data: existing } = await supabase
-      .from('whatsapp_config')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (existing) {
-      const { error: updateError } = await supabase
-        .from('whatsapp_config')
-        .update({
-          phone_number_id,
-          waba_id: waba_id || null,
-          access_token: encryptedAccessToken,
-          verify_token: encryptedVerifyToken,
+    // Upsert using Drizzle
+    await db
+      .insert(whatsappConfig)
+      .values({
+        userId,
+        providerType: provider_type,
+        phoneNumberId: provider_type === 'meta' ? phone_number_id : null,
+        wabaId: provider_type === 'meta' ? (waba_id || null) : null,
+        accessToken: encryptedAccessToken,
+        verifyToken: encryptedVerifyToken,
+        evolutionInstanceName: provider_type === 'evolution' ? evolution_instance_name : null,
+        evolutionInstanceToken: encryptedEvoToken,
+        status: 'connected',
+        connectedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [whatsappConfig.userId],
+        set: {
+          providerType: provider_type,
+          phoneNumberId: provider_type === 'meta' ? phone_number_id : null,
+          wabaId: provider_type === 'meta' ? (waba_id || null) : null,
+          accessToken: encryptedAccessToken,
+          verifyToken: encryptedVerifyToken,
+          evolutionInstanceName: provider_type === 'evolution' ? evolution_instance_name : null,
+          evolutionInstanceToken: encryptedEvoToken,
           status: 'connected',
-          connected_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
+          connectedAt: new Date(),
+          updatedAt: new Date(),
+        }
+      })
 
-      if (updateError) {
-        console.error('Error updating whatsapp_config:', updateError)
-        return NextResponse.json(
-          { error: 'Failed to update configuration' },
-          { status: 500 }
-        )
-      }
-    } else {
-      const { error: insertError } = await supabase
-        .from('whatsapp_config')
-        .insert({
-          user_id: user.id,
-          phone_number_id,
-          waba_id: waba_id || null,
-          access_token: encryptedAccessToken,
-          verify_token: encryptedVerifyToken,
-          status: 'connected',
-          connected_at: new Date().toISOString(),
-        })
-
-      if (insertError) {
-        console.error('Error inserting whatsapp_config:', insertError)
-        return NextResponse.json(
-          { error: 'Failed to save configuration' },
-          { status: 500 }
-        )
-      }
-    }
-
-    return NextResponse.json({ success: true, phone_info: phoneInfo })
+    return NextResponse.json({
+      success: true,
+      provider_type,
+      instance_name: provider_type === 'evolution' ? evolution_instance_name : null,
+    })
   } catch (error) {
     console.error('Error in WhatsApp config POST:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -225,34 +244,19 @@ export async function POST(request: Request) {
  * DELETE /api/whatsapp/config
  *
  * Removes the authenticated user's WhatsApp configuration row.
- * Used by the "Reset Configuration" button to recover from a corrupted
- * encrypted token (mismatched ENCRYPTION_KEY across environments).
  */
 export async function DELETE() {
   try {
-    const supabase = await createClient()
+    const session = await auth()
+    const userId = session?.user?.id
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { error: deleteError } = await supabase
-      .from('whatsapp_config')
-      .delete()
-      .eq('user_id', user.id)
-
-    if (deleteError) {
-      console.error('Error deleting whatsapp_config:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to delete configuration' },
-        { status: 500 }
-      )
-    }
+    await db
+      .delete(whatsappConfig)
+      .where(eq(whatsappConfig.userId, userId))
 
     return NextResponse.json({ success: true })
   } catch (error) {

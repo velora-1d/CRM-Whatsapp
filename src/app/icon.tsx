@@ -22,22 +22,16 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // violet-600 (Hostinger-aligned purple)
+          background: "linear-gradient(to bottom right, #8b5cf6, #3b82f6)",
           borderRadius: 6,
+          color: "#ffffff",
+          fontSize: 20,
+          fontWeight: "bold",
+          fontFamily: "sans-serif",
+          lineHeight: 1,
         }}
       >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
+        V
       </div>
     ),
     { ...size },

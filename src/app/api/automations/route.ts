@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { auth } from '@/auth'
+import { db } from '@/db'
+import { automations } from '@/db/schema'
+import { eq, desc } from 'drizzle-orm'
 import { getTemplate } from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
 import {
@@ -8,27 +10,44 @@ import {
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
 
-export async function GET() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+function mapAutomationToSnakeCase(auto: any) {
+  if (!auto) return null
+  return {
+    id: auto.id,
+    user_id: auto.userId,
+    name: auto.name,
+    description: auto.description,
+    trigger_type: auto.triggerType,
+    trigger_config: auto.triggerConfig,
+    is_active: auto.isActive,
+    execution_count: auto.executionCount,
+    last_executed_at: auto.lastExecutedAt,
+    created_at: auto.createdAt,
+    updated_at: auto.updatedAt,
+  }
+}
 
-  const { data, error } = await supabase
-    .from('automations')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ automations: data ?? [] })
+export async function GET() {
+  const session = await auth()
+  const user = session?.user
+  if (!user || !user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  try {
+    const data = await db
+      .select()
+      .from(automations)
+      .where(eq(automations.userId, user.id))
+      .orderBy(desc(automations.createdAt))
+    return NextResponse.json({ automations: data.map(mapAutomationToSnakeCase) })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth()
+  const user = session?.user
+  if (!user || !user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
@@ -78,31 +97,32 @@ export async function POST(request: Request) {
     }
   }
 
-  const admin = supabaseAdmin()
-  const { data: automation, error: insertErr } = await admin
-    .from('automations')
-    .insert({
-      user_id: user.id,
-      name: effectiveName,
-      description: effectiveDescription ?? null,
-      trigger_type: effectiveTriggerType,
-      trigger_config: effectiveTriggerConfig ?? {},
-      is_active: !!is_active,
-    })
-    .select()
-    .single()
+  try {
+    const [automation] = await db
+      .insert(automations)
+      .values({
+        userId: user.id,
+        name: effectiveName,
+        description: effectiveDescription ?? null,
+        triggerType: effectiveTriggerType,
+        triggerConfig: effectiveTriggerConfig ?? {},
+        isActive: !!is_active,
+      })
+      .returning()
 
-  if (insertErr || !automation) {
-    return NextResponse.json(
-      { error: insertErr?.message ?? 'insert failed' },
-      { status: 500 },
-    )
+    if (!automation) {
+      return NextResponse.json({ error: 'insert failed' }, { status: 500 })
+    }
+
+    if (effectiveSteps && effectiveSteps.length > 0) {
+      const err = await insertSteps(automation.id, effectiveSteps)
+      if (err) return NextResponse.json({ error: err }, { status: 500 })
+    }
+
+    return NextResponse.json({ automation: mapAutomationToSnakeCase(automation) }, { status: 201 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
   }
-
-  if (effectiveSteps && effectiveSteps.length > 0) {
-    const err = await insertSteps(automation.id, effectiveSteps)
-    if (err) return NextResponse.json({ error: err }, { status: 500 })
-  }
-
-  return NextResponse.json({ automation }, { status: 201 })
 }
+
+

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { auth } from '@/auth'
+import { db } from '@/db'
+import { automations } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
 import {
   loadStepsTree,
   replaceSteps,
@@ -12,11 +14,25 @@ import {
 } from '@/lib/automations/validate'
 
 async function requireUser() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
+  const session = await auth()
+  return session?.user
+}
+
+function mapAutomationToSnakeCase(auto: any) {
+  if (!auto) return null
+  return {
+    id: auto.id,
+    user_id: auto.userId,
+    name: auto.name,
+    description: auto.description,
+    trigger_type: auto.triggerType,
+    trigger_config: auto.triggerConfig,
+    is_active: auto.isActive,
+    execution_count: auto.executionCount,
+    last_executed_at: auto.lastExecutedAt,
+    created_at: auto.createdAt,
+    updated_at: auto.updatedAt,
+  }
 }
 
 export async function GET(
@@ -25,21 +41,23 @@ export async function GET(
 ) {
   const { id } = await params
   const user = await requireUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user || !user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = supabaseAdmin()
-  const { data: automation, error } = await admin
-    .from('automations')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  try {
+    const automation = await db.query.automations.findFirst({
+      where: and(
+        eq(automations.id, id),
+        eq(automations.userId, user.id)
+      )
+    })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!automation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!automation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const steps = await loadStepsTree(id)
-  return NextResponse.json({ automation, steps })
+    const steps = await loadStepsTree(id)
+    return NextResponse.json({ automation: mapAutomationToSnakeCase(automation), steps })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+  }
 }
 
 export async function PATCH(
@@ -48,76 +66,76 @@ export async function PATCH(
 ) {
   const { id } = await params
   const user = await requireUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user || !user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
 
-  const admin = supabaseAdmin()
-
-  // Ownership check before we touch anything. Load the fields we need
-  // to compute the post-patch "effective" state for validation.
-  const { data: existing } = await admin
-    .from('automations')
-    .select('id, user_id, is_active, trigger_type, trigger_config')
-    .eq('id', id)
-    .maybeSingle()
-  if (!existing || existing.user_id !== user.id) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  const update: Record<string, unknown> = {}
-  for (const k of [
-    'name',
-    'description',
-    'trigger_type',
-    'trigger_config',
-    'is_active',
-  ] as const) {
-    if (k in body) update[k] = body[k]
-  }
-
-  // If this PATCH leaves the automation active (either explicitly
-  // activating it OR editing an already-active one), validate the
-  // merged configuration first. Activation is the natural gate — drafts
-  // are still allowed to be incomplete.
-  const willBeActive =
-    typeof update.is_active === 'boolean' ? update.is_active : existing.is_active
-  if (willBeActive) {
-    const mergedTriggerType = (update.trigger_type ?? existing.trigger_type) as string
-    const mergedTriggerConfig = update.trigger_config ?? existing.trigger_config
-    const mergedSteps = Array.isArray(body.steps)
-      ? (body.steps as { step_type: string; step_config: Record<string, unknown> }[])
-      : await loadStepsTree(id)
-    const issues = [
-      ...validateTriggerForActivation(mergedTriggerType, mergedTriggerConfig),
-      ...validateStepsForActivation(mergedSteps),
-    ]
-    if (issues.length > 0) {
-      return NextResponse.json(
-        {
-          error: 'Cannot keep automation active with invalid configuration',
-          issues,
-        },
-        { status: 400 },
+  try {
+    // Ownership check before we touch anything.
+    const existing = await db.query.automations.findFirst({
+      where: and(
+        eq(automations.id, id),
+        eq(automations.userId, user.id)
       )
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
-  }
 
-  if (Object.keys(update).length > 0) {
-    const { error: updErr } = await admin
-      .from('automations')
-      .update(update)
-      .eq('id', id)
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
-  }
+    const update: Record<string, unknown> = {}
+    if ('name' in body) update.name = body.name
+    if ('description' in body) update.description = body.description
+    if ('trigger_type' in body) update.triggerType = body.trigger_type
+    if ('trigger_config' in body) update.triggerConfig = body.trigger_config
+    if ('is_active' in body) update.isActive = body.is_active
 
-  if (Array.isArray(body.steps)) {
-    const err = await replaceSteps(id, body.steps as BuilderStepInput[])
-    if (err) return NextResponse.json({ error: err }, { status: 500 })
-  }
+    // If this PATCH leaves the automation active (either explicitly
+    // activating it OR editing an already-active one), validate the
+    // merged configuration first.
+    const willBeActive =
+      typeof update.isActive === 'boolean' ? update.isActive : existing.isActive
+    if (willBeActive) {
+      const mergedTriggerType = (update.triggerType ?? existing.triggerType) as string
+      const mergedTriggerConfig = (update.triggerConfig ?? existing.triggerConfig) as any
+      const mergedSteps = Array.isArray(body.steps)
+        ? (body.steps as { step_type: string; step_config: Record<string, unknown> }[])
+        : await loadStepsTree(id)
+      const issues = [
+        ...validateTriggerForActivation(mergedTriggerType, mergedTriggerConfig),
+        ...validateStepsForActivation(mergedSteps),
+      ]
+      if (issues.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Cannot keep automation active with invalid configuration',
+            issues,
+          },
+          { status: 400 },
+        )
+      }
+    }
 
-  return NextResponse.json({ ok: true })
+    if (Object.keys(update).length > 0) {
+      await db
+        .update(automations)
+        .set({
+          ...update,
+          updatedAt: new Date()
+        })
+        .where(eq(automations.id, id))
+    }
+
+    if (Array.isArray(body.steps)) {
+      const err = await replaceSteps(id, body.steps as BuilderStepInput[])
+      if (err) return NextResponse.json({ error: err }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+  }
 }
 
 export async function DELETE(
@@ -126,13 +144,20 @@ export async function DELETE(
 ) {
   const { id } = await params
   const user = await requireUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user || !user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { error } = await supabaseAdmin()
-    .from('automations')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  try {
+    await db
+      .delete(automations)
+      .where(
+        and(
+          eq(automations.id, id),
+          eq(automations.userId, user.id)
+        )
+      )
+    return NextResponse.json({ ok: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
+  }
 }
+

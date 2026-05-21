@@ -1,0 +1,27 @@
+{
+  "name": "wacrm",
+  "description": "Self-hostable CRM template untuk WhatsApp dengan shared inbox, kontak, pipeline penjualan, broadcast, dan otomatisasi no-code.",
+  "version": "0.1.0",
+  "lastUpdated": "2026-05-21",
+  "stack": {
+    "frontend": "Next.js 16 (React 19) + Tailwind CSS v4",
+    "backend": "Next.js API Routes",
+    "database": "Supabase (PostgreSQL)",
+    "orm": "Supabase Client SDK",
+    "auth": "Supabase GoTrue Auth",
+    "realtime": "Supabase Realtime WebSockets",
+    "mobile": null
+  },
+  "mode": "fullstack",
+  "platform": ["web"],
+  "multiTenant": false,
+  "tenantStrategy": null,
+  "scale": "small",
+  "team": "solo",
+  "hosting": {
+    "development": "local",
+    "staging": null,
+    "production": "hostinger/vercel"
+  },
+  "notes": "Memerlukan kredensial Supabase eksternal karena ketiadaan Docker lokal untuk local Supabase CLI."
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getWhatsAppTemplates } from "@/app/actions/inbox";
 import type { MessageTemplate } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,35 +64,14 @@ export function TemplatePicker({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!cancelled) {
-          setTemplates([]);
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Only Approved templates are sendable through Meta — anything else
-      // would 400 on the send route. Hide them rather than letting the
-      // user pick a template that will be rejected.
-      const { data, error } = await supabase
-        .from("message_templates")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "Approved")
-        .order("created_at", { ascending: false });
+      const res = await getWhatsAppTemplates("Approved");
 
       if (cancelled) return;
-      if (error) {
-        console.error("Failed to fetch templates:", error);
+      if (res.error) {
+        console.error("Failed to fetch templates:", res.error);
         setTemplates([]);
       } else {
-        setTemplates((data as MessageTemplate[]) ?? []);
+        setTemplates((res.data as MessageTemplate[]) ?? []);
       }
       setLoading(false);
     })();

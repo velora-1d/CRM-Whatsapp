@@ -1,72 +1,92 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { auth } from '@/auth'
+import { db } from '@/db'
+import { automations, automationSteps } from '@/db/schema'
+import { eq, and, asc } from 'drizzle-orm'
+
+function mapAutomationToSnakeCase(auto: any) {
+  if (!auto) return null
+  return {
+    id: auto.id,
+    user_id: auto.userId,
+    name: auto.name,
+    description: auto.description,
+    trigger_type: auto.triggerType,
+    trigger_config: auto.triggerConfig,
+    is_active: auto.isActive,
+    execution_count: auto.executionCount,
+    last_executed_at: auto.lastExecutedAt,
+    created_at: auto.createdAt,
+    updated_at: auto.updatedAt,
+  }
+}
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth()
+  const user = session?.user
+  if (!user || !user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = supabaseAdmin()
-  const { data: original, error: origErr } = await admin
-    .from('automations')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (origErr) return NextResponse.json({ error: origErr.message }, { status: 500 })
-  if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const { data: copy, error: copyErr } = await admin
-    .from('automations')
-    .insert({
-      user_id: user.id,
-      name: `${original.name} (Copy)`,
-      description: original.description,
-      trigger_type: original.trigger_type,
-      trigger_config: original.trigger_config,
-      is_active: false,
+  try {
+    const original = await db.query.automations.findFirst({
+      where: and(
+        eq(automations.id, id),
+        eq(automations.userId, user.id)
+      )
     })
-    .select()
-    .single()
-  if (copyErr || !copy) {
-    return NextResponse.json({ error: copyErr?.message ?? 'copy failed' }, { status: 500 })
+
+    if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const [copy] = await db
+      .insert(automations)
+      .values({
+        userId: user.id,
+        name: `${original.name} (Copy)`,
+        description: original.description,
+        triggerType: original.triggerType,
+        triggerConfig: original.triggerConfig as any,
+        isActive: false,
+      })
+      .returning()
+
+    if (!copy) {
+      return NextResponse.json({ error: 'copy failed' }, { status: 500 })
+    }
+
+    const steps = await db
+      .select()
+      .from(automationSteps)
+      .where(eq(automationSteps.automationId, id))
+      .orderBy(asc(automationSteps.position))
+
+    if (steps && steps.length > 0) {
+      // Re-map parent_step_id: build old→new id map first so the second
+      // pass inserts rows with correct parent references.
+      const idMap = new Map<string, string>()
+      const uid = () =>
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2) + Date.now().toString(36)
+      for (const row of steps) idMap.set(row.id, uid())
+
+      const rows = steps.map((row) => ({
+        id: idMap.get(row.id)!,
+        automationId: copy.id,
+        parentStepId: row.parentStepId ? idMap.get(row.parentStepId) : null,
+        branch: row.branch as any,
+        stepType: row.stepType,
+        stepConfig: row.stepConfig as any,
+        position: row.position,
+      }))
+      await db.insert(automationSteps).values(rows)
+    }
+
+    return NextResponse.json({ automation: mapAutomationToSnakeCase(copy) }, { status: 201 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
   }
-
-  const { data: steps } = await admin
-    .from('automation_steps')
-    .select('id, parent_step_id, branch, step_type, step_config, position')
-    .eq('automation_id', id)
-    .order('position', { ascending: true })
-
-  if (steps && steps.length > 0) {
-    // Re-map parent_step_id: build old→new id map first so the second
-    // pass inserts rows with correct parent references.
-    const idMap = new Map<string, string>()
-    const uid = () =>
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2) + Date.now().toString(36)
-    for (const row of steps) idMap.set(row.id as string, uid())
-
-    const rows = steps.map((row) => ({
-      id: idMap.get(row.id as string)!,
-      automation_id: copy.id,
-      parent_step_id: row.parent_step_id ? idMap.get(row.parent_step_id as string) : null,
-      branch: row.branch,
-      step_type: row.step_type,
-      step_config: row.step_config,
-      position: row.position,
-    }))
-    const { error: insErr } = await admin.from('automation_steps').insert(rows)
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ automation: copy }, { status: 201 })
 }
+

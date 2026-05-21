@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { getContacts, getTags, deleteContact, getContactTagIds } from '@/app/actions/contacts';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -52,8 +52,6 @@ interface ContactWithTags extends Contact {
 }
 
 export default function ContactsPage() {
-  const supabase = createClient();
-
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -75,73 +73,31 @@ export default function ContactsPage() {
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
 
   const fetchTags = useCallback(async () => {
-    const { data } = await supabase.from('tags').select('*');
-    if (data) {
+    const res = await getTags();
+    if (res.success && res.data) {
       const map: Record<string, Tag> = {};
-      data.forEach((t) => (map[t.id] = t));
+      res.data.forEach((t) => (map[t.id] = t as any));
       setTagsMap(map);
     }
-  }, [supabase]);
+  }, []);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
+    const res = await getContacts(page, search);
 
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    let query = supabase
-      .from('contacts')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
-
-    if (search.trim()) {
-      const term = `%${search.trim()}%`;
-      query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
-    }
-
-    const { data, count, error } = await query;
-
-    if (error) {
+    if (res.error) {
       toast.error('Failed to load contacts');
       setLoading(false);
       return;
     }
 
-    setTotalCount(count ?? 0);
-
-    if (!data || data.length === 0) {
-      setContacts([]);
-      setLoading(false);
-      return;
-    }
-
-    // Fetch tags for these contacts
-    const contactIds = data.map((c) => c.id);
-    const { data: contactTags } = await supabase
-      .from('contact_tags')
-      .select('contact_id, tag_id')
-      .in('contact_id', contactIds);
-
-    const tagsByContact: Record<string, string[]> = {};
-    contactTags?.forEach((ct) => {
-      if (!tagsByContact[ct.contact_id]) tagsByContact[ct.contact_id] = [];
-      tagsByContact[ct.contact_id].push(ct.tag_id);
-    });
-
-    const enriched: ContactWithTags[] = data.map((c) => ({
-      ...c,
-      tags: (tagsByContact[c.id] ?? [])
-        .map((tid) => tagsMap[tid])
-        .filter(Boolean),
-    }));
-
-    setContacts(enriched);
+    setTotalCount(res.totalCount ?? 0);
+    setContacts((res.data || []) as any);
     setLoading(false);
-  }, [supabase, page, search, tagsMap]);
+  }, [page, search]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
-  // inside an async promise completion (Supabase await), not
+  // inside an async promise completion, not
   // synchronously in the effect body, so the cascade the lint rule
   // warns about doesn't apply here.
   useEffect(() => {
@@ -161,12 +117,9 @@ export default function ContactsPage() {
   }
 
   async function openEditForm(contact: Contact) {
-    const { data } = await supabase
-      .from('contact_tags')
-      .select('*')
-      .eq('contact_id', contact.id);
+    const res = await getContactTagIds(contact.id);
     setEditContact(contact);
-    setEditContactTags(data ?? []);
+    setEditContactTags((res.data || []) as any);
     setFormOpen(true);
   }
 
@@ -184,12 +137,9 @@ export default function ContactsPage() {
     if (!deleteTarget) return;
     setDeleting(true);
 
-    const { error } = await supabase
-      .from('contacts')
-      .delete()
-      .eq('id', deleteTarget.id);
+    const res = await deleteContact(deleteTarget.id);
 
-    if (error) {
+    if (res.error) {
       toast.error('Failed to delete contact');
     } else {
       toast.success('Contact deleted');

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { saveBroadcastDraft } from '@/app/actions/broadcasts';
 import { toast } from 'sonner';
 import { MessageTemplate } from '@/types';
 import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-template';
@@ -81,41 +81,23 @@ export default function NewBroadcastPage() {
       toast.error('Give the broadcast a name before saving a draft.');
       return;
     }
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) {
-      toast.error('Not signed in.');
-      return;
-    }
 
-    const { error } = await supabase.from('broadcasts').insert({
-      user_id: user.id,
-      name: name.trim(),
-      template_name: template.name,
-      template_language: template.language ?? 'en_US',
-      template_variables: variables,
-      audience_filter: {
-        type: audience.type,
-        tagIds: audience.tagIds,
-      },
-      status: 'draft',
-      total_recipients: 0,
-      sent_count: 0,
-      delivered_count: 0,
-      read_count: 0,
-      replied_count: 0,
-      failed_count: 0,
-    });
-
-    if (error) {
-      toast.error(`Failed to save draft: ${error.message}`);
-      return;
+    try {
+      await saveBroadcastDraft({
+        name: name.trim(),
+        templateName: template.name,
+        templateLanguage: template.language ?? 'en_US',
+        variables: variables,
+        audienceFilter: {
+          type: audience.type,
+          tagIds: audience.tagIds,
+        },
+      });
+      toast.success('Draft saved');
+      router.push('/broadcasts');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save draft');
     }
-    toast.success('Draft saved');
-    router.push('/broadcasts');
   }
 
   return (

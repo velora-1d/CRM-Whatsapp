@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
+import { getWhatsAppConnected } from "@/app/actions/inbox";
+import type { Conversation, Message, Contact, ConversationStatus, MessageReaction } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
@@ -16,7 +16,7 @@ export default function InboxPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   /**
-   * `?c=<id>` deep-link support. Used when landing here from the
+   * ?c=<id> deep-link support. Used when landing here from the
    * dashboard's recent-conversations list so the right thread opens
    * automatically instead of showing the empty center panel.
    */
@@ -27,6 +27,7 @@ export default function InboxPage() {
     useState<Conversation | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [reactions, setReactions] = useState<MessageReaction[]>([]);
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(
     null
   );
@@ -40,23 +41,10 @@ export default function InboxPage() {
   // Check WhatsApp connection status on mount
   useEffect(() => {
     const checkConnection = async () => {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-
-      if (!user) return;
-
-      // Table is `whatsapp_config` (singular) — the previous "whatsapp_configs"
-      // query always returned no rows, so the banner always showed "not connected".
-      const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      setWhatsappConnected(data?.status === "connected");
+      const res = await getWhatsAppConnected();
+      if (res.success && res.connected !== undefined) {
+        setWhatsappConnected(res.connected);
+      }
     };
 
     checkConnection();
@@ -141,11 +129,65 @@ export default function InboxPage() {
     [activeConversation]
   );
 
+  // Handle realtime reaction events
+  const handleReactionEvent = useCallback(
+    (event: {
+      eventType: string;
+      new: MessageReaction;
+      old: Partial<MessageReaction>;
+    }) => {
+      const newReaction = event.new;
+
+      if (
+        activeConversation &&
+        newReaction.conversation_id === activeConversation.id
+      ) {
+        setReactions((prev) => {
+          if (newReaction.emoji === "" || event.eventType === "DELETE") {
+            return prev.filter((r) => r.id !== newReaction.id);
+          }
+
+          // Replace optimistic reaction if matches
+          const tempMatchIdx = prev.findIndex(
+            (r) =>
+              r.id.startsWith("temp-") &&
+              r.message_id === newReaction.message_id &&
+              r.actor_type === newReaction.actor_type &&
+              r.actor_id === newReaction.actor_id
+          );
+
+          if (tempMatchIdx >= 0) {
+            const copy = [...prev];
+            copy[tempMatchIdx] = newReaction;
+            return copy;
+          }
+
+          if (prev.some((r) => r.id === newReaction.id)) {
+            return prev.map((r) => (r.id === newReaction.id ? newReaction : r));
+          }
+
+          // Remove any existing reaction from the same actor for this message before adding new
+          const withoutSameActor = prev.filter(
+            (r) =>
+              !(
+                r.message_id === newReaction.message_id &&
+                r.actor_type === newReaction.actor_type &&
+                r.actor_id === newReaction.actor_id
+              )
+          );
+          return [...withoutSameActor, newReaction];
+        });
+      }
+    },
+    [activeConversation]
+  );
+
   // Subscribe to realtime
   useRealtime({
     channelName: "inbox-realtime",
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
+    onReactionEvent: handleReactionEvent,
     enabled: true,
   });
 
@@ -178,6 +220,7 @@ export default function InboxPage() {
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
           setMessages([]);
+          setReactions([]);
         }
       }
     },
@@ -194,6 +237,7 @@ export default function InboxPage() {
       setActiveConversation(conv);
       setActiveContact(conv.contact ?? null);
       setMessages([]);
+      setReactions([]);
       // Record the selection on the deep-link ref BEFORE we change the
       // URL. The router.replace below flips `deepLinkConvId`, which can
       // in turn cause ConversationList to refetch and eventually call
@@ -217,6 +261,7 @@ export default function InboxPage() {
     setActiveConversation(null);
     setActiveContact(null);
     setMessages([]);
+    setReactions([]);
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /inbox?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
@@ -328,6 +373,8 @@ export default function InboxPage() {
             conversation={activeConversation}
             contact={activeContact}
             messages={messages}
+            reactions={reactions}
+            setReactions={setReactions}
             onMessagesLoaded={handleMessagesLoaded}
             onNewMessage={handleNewMessage}
             onUpdateMessage={handleUpdateMessage}

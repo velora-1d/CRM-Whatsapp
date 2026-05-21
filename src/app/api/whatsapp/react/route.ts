@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { db } from '@/db';
+import { conversations, messages, messageReactions, whatsappConfig } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { auth } from '@/auth';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import {
   checkRateLimit,
@@ -14,24 +16,20 @@ import {
  *
  * Body: { message_id: <internal UUID>, emoji: <single emoji or "" to remove> }
  *
- * Sends the reaction to Meta and mirrors it into `message_reactions`
+ * Sends the reaction to WhatsApp provider and mirrors it into `message_reactions`
  * (delete on empty emoji). Customer-side reactions are handled by the
  * webhook — this route only writes `actor_type = 'agent'` rows.
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
+    const session = await auth();
+    const userId = session?.user?.id;
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const limit = checkRateLimit(`react:${user.id}`, RATE_LIMITS.react);
+    const limit = checkRateLimit(`react:${userId}`, RATE_LIMITS.react);
     if (!limit.success) {
       return rateLimitResponse(limit);
     }
@@ -49,43 +47,41 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve target message + its conversation; verify ownership.
-    const { data: targetMessage, error: msgError } = await supabase
-      .from('messages')
-      .select('id, message_id, conversation_id')
-      .eq('id', message_id)
-      .maybeSingle();
+    // Resolve target message using Drizzle
+    const targetMessage = await db.query.messages.findFirst({
+      where: eq(messages.id, message_id)
+    });
 
-    if (msgError || !targetMessage) {
+    if (!targetMessage) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 });
     }
 
-    if (!targetMessage.message_id) {
-      // No Meta ID yet — usually a sending/failed agent message. We can't
-      // tell Meta to react to a message it never received.
+    if (!targetMessage.messageId) {
       return NextResponse.json(
         { error: 'Cannot react to a message that has not been sent to WhatsApp' },
         { status: 400 },
       );
     }
 
-    const { data: conversation, error: convError } = await supabase
-      .from('conversations')
-      .select('id, user_id, contact:contacts(phone)')
-      .eq('id', targetMessage.conversation_id)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // Resolve conversation and verify ownership
+    const conversation = await db.query.conversations.findFirst({
+      where: and(
+        eq(conversations.id, targetMessage.conversationId),
+        eq(conversations.userId, userId)
+      ),
+      with: {
+        contact: true
+      }
+    });
 
-    if (convError || !conversation) {
+    if (!conversation) {
       return NextResponse.json(
         { error: 'Conversation not found' },
         { status: 404 },
       );
     }
 
-    const contact = Array.isArray(conversation.contact)
-      ? conversation.contact[0]
-      : conversation.contact;
+    const contact = conversation.contact;
     if (!contact?.phone) {
       return NextResponse.json(
         { error: 'Contact phone number not found' },
@@ -93,78 +89,59 @@ export async function POST(request: Request) {
       );
     }
 
-    // WhatsApp config + access token
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token')
-      .eq('user_id', user.id)
-      .single();
-
-    if (configError || !config) {
+    // Get active provider from factory
+    const provider = await WhatsAppProviderFactory.getProvider(userId);
+    if (!provider) {
       return NextResponse.json(
         { error: 'WhatsApp not configured.' },
         { status: 400 },
       );
     }
 
-    const accessToken = decrypt(config.access_token);
     const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
 
     try {
-      await sendReactionMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
-        to: sanitizedPhone,
-        targetMessageId: targetMessage.message_id,
-        emoji,
-      });
+      await provider.sendReactionMessage(
+        sanitizedPhone,
+        targetMessage.messageId,
+        emoji
+      );
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Unknown Meta API error';
-      console.error('[whatsapp/react] Meta send failed:', message);
+        err instanceof Error ? err.message : 'Unknown WhatsApp API error';
+      console.error('[whatsapp/react] sendReactionMessage failed:', message);
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: `WhatsApp API error: ${message}` },
         { status: 502 },
       );
     }
 
     // Mirror into DB. Empty emoji = removal.
     if (emoji === '') {
-      const { error: delError } = await supabase
-        .from('message_reactions')
-        .delete()
-        .eq('message_id', targetMessage.id)
-        .eq('actor_type', 'agent')
-        .eq('actor_id', user.id);
-
-      if (delError) {
-        console.error('[whatsapp/react] DB delete failed:', delError.message);
-        return NextResponse.json(
-          { error: 'Reaction sent to Meta but DB delete failed' },
-          { status: 500 },
+      await db
+        .delete(messageReactions)
+        .where(
+          and(
+            eq(messageReactions.messageId, targetMessage.id),
+            eq(messageReactions.actorType, 'agent'),
+            eq(messageReactions.actorId, userId)
+          )
         );
-      }
     } else {
-      // Upsert. The unique constraint (message_id, actor_type, actor_id)
-      // lets us swap emoji in a single statement.
-      const { error: upsertError } = await supabase.from('message_reactions').upsert(
-        {
-          message_id: targetMessage.id,
-          conversation_id: targetMessage.conversation_id,
-          actor_type: 'agent',
-          actor_id: user.id,
+      // Upsert using Drizzle
+      await db
+        .insert(messageReactions)
+        .values({
+          messageId: targetMessage.id,
+          conversationId: targetMessage.conversationId,
+          actorType: 'agent',
+          actorId: userId,
           emoji,
-        },
-        { onConflict: 'message_id,actor_type,actor_id' },
-      );
-
-      if (upsertError) {
-        console.error('[whatsapp/react] DB upsert failed:', upsertError.message);
-        return NextResponse.json(
-          { error: 'Reaction sent to Meta but DB upsert failed' },
-          { status: 500 },
-        );
-      }
+        })
+        .onConflictDoUpdate({
+          target: [messageReactions.messageId, messageReactions.actorType, messageReactions.actorId],
+          set: { emoji },
+        });
     }
 
     return NextResponse.json({ success: true });

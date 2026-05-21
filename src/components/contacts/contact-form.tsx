@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { getTags, saveContact } from '@/app/actions/contacts';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import {
@@ -33,7 +33,6 @@ export function ContactForm({
   contactTags = [],
   onSaved,
 }: ContactFormProps) {
-  const supabase = createClient();
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
@@ -59,11 +58,8 @@ export function ContactForm({
 
   async function fetchTags() {
     setLoadingTags(true);
-    const { data } = await supabase
-      .from('tags')
-      .select('*')
-      .order('name');
-    if (data) setTags(data);
+    const res = await getTags();
+    if (res.success && res.data) setTags(res.data as any);
     setLoadingTags(false);
   }
 
@@ -86,60 +82,16 @@ export function ContactForm({
     setSaving(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) throw new Error('Not authenticated');
+      const res = await saveContact({
+        id: contact?.id,
+        name: name.trim() || null,
+        phone: phone.trim(),
+        email: email.trim() || null,
+        company: company.trim() || null,
+        tagIds: selectedTagIds,
+      });
 
-      let contactId = contact?.id;
-
-      if (isEdit && contactId) {
-        const { error } = await supabase
-          .from('contacts')
-          .update({
-            name: name.trim() || null,
-            phone: phone.trim(),
-            email: email.trim() || null,
-            company: company.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', contactId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('contacts')
-          .insert({
-            user_id: user.id,
-            name: name.trim() || null,
-            phone: phone.trim(),
-            email: email.trim() || null,
-            company: company.trim() || null,
-          })
-          .select('id')
-          .single();
-        if (error) throw error;
-        contactId = data.id;
-      }
-
-      // Sync tags
-      if (contactId) {
-        await supabase
-          .from('contact_tags')
-          .delete()
-          .eq('contact_id', contactId);
-
-        if (selectedTagIds.length > 0) {
-          const tagRows = selectedTagIds.map((tag_id) => ({
-            contact_id: contactId!,
-            tag_id,
-          }));
-          const { error: tagError } = await supabase
-            .from('contact_tags')
-            .insert(tagRows);
-          if (tagError) throw tagError;
-        }
-      }
+      if (res.error) throw new Error(res.error);
 
       toast.success(isEdit ? 'Contact updated' : 'Contact created');
       onOpenChange(false);

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { db } from '@/db'
+import { automationPendingExecutions } from '@/db/schema'
+import { and, eq, lte, asc } from 'drizzle-orm'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 
@@ -24,42 +26,53 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const admin = supabaseAdmin()
-  const { data: due, error } = await admin
-    .from('automation_pending_executions')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('run_at', new Date().toISOString())
-    .order('run_at', { ascending: true })
-    .limit(50)
+  try {
+    const due = await db
+      .select()
+      .from(automationPendingExecutions)
+      .where(
+        and(
+          eq(automationPendingExecutions.status, 'pending'),
+          lte(automationPendingExecutions.runAt, new Date())
+        )
+      )
+      .orderBy(asc(automationPendingExecutions.runAt))
+      .limit(50)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
+    if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
-  let processed = 0
-  for (const row of due) {
-    const { data: claim } = await admin
-      .from('automation_pending_executions')
-      .update({ status: 'running' })
-      .eq('id', row.id)
-      .eq('status', 'pending')
-      .select('id')
-      .maybeSingle()
-    if (!claim) continue
+    let processed = 0
+    for (const row of due) {
+      const [claim] = await db
+        .update(automationPendingExecutions)
+        .set({ status: 'running' })
+        .where(
+          and(
+            eq(automationPendingExecutions.id, row.id),
+            eq(automationPendingExecutions.status, 'pending')
+          )
+        )
+        .returning({ id: automationPendingExecutions.id })
 
-    await resumePendingExecution({
-      id: row.id as string,
-      automation_id: row.automation_id as string,
-      user_id: row.user_id as string,
-      contact_id: (row.contact_id as string | null) ?? null,
-      log_id: (row.log_id as string | null) ?? null,
-      parent_step_id: (row.parent_step_id as string | null) ?? null,
-      branch: (row.branch as 'yes' | 'no' | null) ?? null,
-      next_step_position: row.next_step_position as number,
-      context: (row.context as AutomationContext) ?? {},
-    })
-    processed++
+      if (!claim) continue
+
+      await resumePendingExecution({
+        id: row.id,
+        automation_id: row.automationId,
+        user_id: row.userId,
+        contact_id: row.contactId,
+        log_id: row.logId,
+        parent_step_id: row.parentStepId,
+        branch: row.branch as any,
+        next_step_position: row.nextStepPosition,
+        context: (row.context as AutomationContext) ?? {},
+      })
+      processed++
+    }
+
+    return NextResponse.json({ processed })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 })
   }
-
-  return NextResponse.json({ processed })
 }
+

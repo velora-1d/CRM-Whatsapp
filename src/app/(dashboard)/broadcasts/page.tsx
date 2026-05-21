@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getBroadcasts } from '@/app/actions/broadcasts';
 import { Broadcast } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +18,7 @@ import { getBroadcastStatus } from '@/lib/broadcast-status';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
- * beat on Supabase — the aggregate trigger in migration 003 keeps
+ * beat on database — the aggregate trigger in migration 003 keeps
  * counts consistent; we just need to surface the freshest snapshot.
  */
 const POLL_INTERVAL_MS = 5_000;
@@ -56,7 +56,7 @@ function RateCell({
 
 export default function BroadcastsPage() {
   const router = useRouter();
-  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,13 +65,7 @@ export default function BroadcastsPage() {
 
   async function fetchBroadcasts() {
     try {
-      const supabase = createClient();
-      const { data, error: fetchError } = await supabase
-        .from('broadcasts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
+      const data = await getBroadcasts();
       setBroadcasts(data ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load broadcasts');

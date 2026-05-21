@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/auth'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import type { AutomationTriggerType } from '@/types'
 
 /**
  * Manual trigger for testing or for external integrations that want
  * to fire automations. Auth is required — the caller's user_id is
- * used so RLS-safe data remains per-user.
+ * used so data remains per-user.
  */
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth()
+  const user = session?.user
+  if (!user || !user.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const body = await request.json().catch(() => null)
   if (!body?.trigger_type) {
@@ -29,3 +29,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true })
 }
+

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { auth } from '@/auth'
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory'
 
 export async function GET(
   request: Request,
@@ -17,49 +16,31 @@ export async function GET(
       )
     }
 
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth()
+    if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
+    const userId = session.user.id
 
-    // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (configError || !config) {
+    // Get the provider
+    const provider = await WhatsAppProviderFactory.getProvider(userId)
+    if (!provider) {
       return NextResponse.json(
         { error: 'WhatsApp not configured' },
         { status: 400 }
       )
     }
 
-    const accessToken = decrypt(config.access_token)
-
-    // Get the download URL from Meta
-    const mediaInfo = await getMediaUrl({ mediaId, accessToken })
-
     // Download the binary data
-    const { buffer, contentType } = await downloadMedia({
-      downloadUrl: mediaInfo.url,
-      accessToken,
-    })
+    const { buffer, contentType } = await provider.downloadMedia(mediaId)
 
     return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': contentType || mediaInfo.mimeType || 'application/octet-stream',
+        'Content-Type': contentType || 'application/octet-stream',
         'Cache-Control': 'public, max-age=86400',
       },
     })
@@ -71,3 +52,4 @@ export async function GET(
     )
   }
 }
+

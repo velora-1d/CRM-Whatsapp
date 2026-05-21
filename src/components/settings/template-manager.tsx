@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { getWhatsAppTemplates, createWhatsAppTemplate, deleteWhatsAppTemplate } from '@/app/actions/inbox';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,7 +91,6 @@ const COMMON_LANGUAGE_CODES = [
 ];
 
 export function TemplateManager() {
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -115,17 +114,12 @@ export function TemplateManager() {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('message_templates')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTemplates(data || []);
-    } catch (err) {
+      const res = await getWhatsAppTemplates();
+      if (res.error) throw new Error(res.error);
+      setTemplates((res.data as MessageTemplate[]) || []);
+    } catch (err: any) {
       console.error('Failed to fetch templates:', err);
-      toast.error('Failed to load templates');
+      toast.error(err.message || 'Failed to load templates');
     } finally {
       setLoading(false);
     }
@@ -149,29 +143,24 @@ export function TemplateManager() {
       }
 
       const payload = {
-        user_id: user.id,
         name: form.name.trim(),
         category: form.category,
         language: form.language.trim() || 'en_US',
         body_text: form.body_text.trim(),
         header_type: form.header_type || null,
         footer_text: form.footer_text.trim() || null,
-        status: 'Draft' as const,
       };
 
-      const { error } = await supabase
-        .from('message_templates')
-        .insert(payload);
-
-      if (error) throw error;
+      const res = await createWhatsAppTemplate(payload);
+      if (res.error) throw new Error(res.error);
 
       toast.success('Template created successfully');
       setDialogOpen(false);
       setForm(emptyForm);
       if (user) await fetchTemplates(user.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save error:', err);
-      toast.error('Failed to create template');
+      toast.error(err.message || 'Failed to create template');
     } finally {
       setSaving(false);
     }
@@ -229,17 +218,13 @@ export function TemplateManager() {
 
   async function handleDelete(id: string) {
     try {
-      const { error } = await supabase
-        .from('message_templates')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      const res = await deleteWhatsAppTemplate(id);
+      if (res.error) throw new Error(res.error);
       toast.success('Template deleted');
       setTemplates((prev) => prev.filter((t) => t.id !== id));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete error:', err);
-      toast.error('Failed to delete template');
+      toast.error(err.message || 'Failed to delete template');
     }
   }
 
