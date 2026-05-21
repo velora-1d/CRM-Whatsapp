@@ -36,6 +36,10 @@ Self-hostable CRM template untuk WhatsApp dengan shared inbox, kontak, pipeline 
 - Dependensi Node.js berhasil diinstal (`npm install`).
 - Validasi tipe TypeScript (`npm run typecheck`) sukses tanpa error.
 - Kompilasi build Next.js (`npm run build`) sukses diselesaikan.
+- Error production `404` di domain Dokploy ditelusuri ke runtime crash pada middleware karena bundle edge menarik `@/auth` dan `pg`.
+- `src/middleware.ts` diubah agar memakai `getToken()` dari `next-auth/jwt`, sehingga middleware tetap auth-aware tanpa mengimpor modul Node-only.
+- Build produksi diverifikasi kembali sukses setelah patch middleware.
+- Tindak lanjut deploy: redeploy image/container Dokploy untuk menerapkan patch middleware terbaru.
 
 ## Link Repo 
 Repo = https://github.com/velora-1d/CRM-Whatsapp

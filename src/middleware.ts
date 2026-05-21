@@ -1,8 +1,28 @@
-import { auth } from '@/auth'
-import { NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth?.user
+async function readSessionToken(req: NextRequest) {
+  const forwardedProto = req.headers.get('x-forwarded-proto')
+  const secureCookie =
+    forwardedProto === 'https' || req.nextUrl.protocol === 'https:'
+
+  return (
+    (await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      secureCookie,
+    })) ??
+    (await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      secureCookie: !secureCookie,
+    }))
+  )
+}
+
+export default async function middleware(req: NextRequest) {
+  const token = await readSessionToken(req)
+  const isLoggedIn = !!token
   const { nextUrl } = req
 
   // Auth pages - redirect to dashboard if already logged in
@@ -24,11 +44,10 @@ export default auth((req) => {
   }
 
   return NextResponse.next()
-})
+}
 
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-
