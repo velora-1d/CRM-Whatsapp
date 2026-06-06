@@ -7,7 +7,7 @@ export const getApiDocs = () => {
         definition: {
             openapi: "3.0.0",
             info: {
-                title: "WA-AKG API Documentation",
+                title: "Velora CRM API Documentation",
                 version: "1.2.0",
                 description: `
 # WhatsApp AI Gateway - Complete API Reference
@@ -959,7 +959,7 @@ All endpoints require authentication via:
                                                     sticker: {
                                                         url: "https://example.com/sticker.webp",
                                                         pack: "My Stickers",
-                                                        author: "WA-AKG"
+                                                        author: "Velora CRM"
                                                     }
                                                 }
                                             }
@@ -992,7 +992,7 @@ All endpoints require authentication via:
                                                     id: "3EB01234567890"
                                                 },
                                                 message: {
-                                                    conversation: "Hello from WA-AKG!"
+                                                    conversation: "Hello from Velora CRM!"
                                                 },
                                                 messageTimestamp: "1678901234"
                                             }
@@ -1603,7 +1603,7 @@ All endpoints require authentication via:
                                         required: ["file"],
                                         properties: {
                                             file: { type: "string", format: "binary" },
-                                            pack: { type: "string", description: "Sticker pack name (default: WA-AKG)" },
+                                            pack: { type: "string", description: "Sticker pack name (default: Velora CRM)" },
                                             author: { type: "string", description: "Sticker author name (default: User)" },
                                             type: { type: "string", enum: ["full", "crop", "circle"], description: "Sticker crop type (default: full)" },
                                             quality: { type: "integer", minimum: 1, maximum: 100, description: "Image quality (default: 50)" }
@@ -3940,7 +3940,7 @@ All endpoints require authentication via:
                                             type: "object",
                                             properties: {
                                                 id: { type: "string", example: "default" },
-                                                appName: { type: "string", example: "WA-AKG" },
+                                                appName: { type: "string", example: "Velora CRM" },
                                                 logoUrl: { type: "string", example: "https://example.com/logo.png" },
                                                 timezone: { type: "string", example: "Asia/Jakarta" }
                                             }

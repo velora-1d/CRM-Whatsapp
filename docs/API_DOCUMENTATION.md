@@ -1,4 +1,4 @@
-# WA-AKG API Documentation
+# Velora CRM API Documentation
 
 # WhatsApp AI Gateway — Complete API Reference
 
@@ -427,7 +427,7 @@ Content-Type: application/json
   "message": "string",
   "result": [
     {
-      "text": "Hello from WA-AKG!"
+      "text": "Hello from Velora CRM!"
     }
   ]
 }
@@ -1186,11 +1186,11 @@ Get all sessions accessible to the authenticated user (role-based filtering)
     "status": "Connected",
     "userId": "string",
     "botConfig": {
-      "text": "Hello from WA-AKG!"
+      "text": "Hello from Velora CRM!"
     },
     "webhooks": [
       {
-        "text": "Hello from WA-AKG!"
+        "text": "Hello from Velora CRM!"
       }
     ],
     "_count": {
@@ -1277,11 +1277,11 @@ Content-Type: application/json
   "status": "Connected",
   "userId": "string",
   "botConfig": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   },
   "webhooks": [
     {
-      "text": "Hello from WA-AKG!"
+      "text": "Hello from Velora CRM!"
     }
   ],
   "_count": {
@@ -1535,11 +1535,11 @@ Get detailed information about a specific session including uptime and status
   "status": "Connected",
   "userId": "string",
   "botConfig": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   },
   "webhooks": [
     {
-      "text": "Hello from WA-AKG!"
+      "text": "Hello from Velora CRM!"
     }
   ],
   "_count": {
@@ -1555,7 +1555,7 @@ Get detailed information about a specific session including uptime and status
   "messageCount": 0,
   "hasInstance": true,
   "me": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -1605,7 +1605,7 @@ Start, stop, restart, or logout a session
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -1703,7 +1703,7 @@ Permanently deletes session and logs out from WhatsApp
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -1893,7 +1893,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -1943,7 +1943,7 @@ Content-Type: application/json
 ```json
 {
   "message": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   },
   "mentions": [
     "628123456789@s.whatsapp.net"
@@ -1984,7 +1984,7 @@ Content-Type: application/json
       "id": "3EB01234567890"
     },
     "message": {
-      "conversation": "Hello from WA-AKG!"
+      "conversation": "Hello from Velora CRM!"
     },
     "messageTimestamp": "1678901234"
   }
@@ -1997,7 +1997,7 @@ Content-Type: application/json
 curl -X POST "http://localhost:3000/api/messages/sales-01/628123456789@s.whatsapp.net/send" \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
-  -d '{"message":{"text":"Hello from WA-AKG!"},"mentions":["628123456789@s.whatsapp.net"]}'
+  -d '{"message":{"text":"Hello from Velora CRM!"},"mentions":["628123456789@s.whatsapp.net"]}'
 ```
 
 ---
@@ -2066,7 +2066,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -2636,7 +2636,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -2977,7 +2977,7 @@ Content-Type: application/json
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `file` | string (binary) | ✅ Yes | — |
-| `pack` | string | No | Sticker pack name (default: WA-AKG) |
+| `pack` | string | No | Sticker pack name (default: Velora CRM) |
 | `author` | string | No | Sticker author name (default: User) |
 | `type` | string | No | Sticker crop type (default: full) **Options:** `full`, `crop`, `circle` |
 | `quality` | integer | No | Image quality (default: 50) |
@@ -3832,7 +3832,7 @@ Fetch profile information of the connected WhatsApp account
   "success": true,
   "jid": "string",
   "status": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -3903,7 +3903,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -3976,7 +3976,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -4026,7 +4026,7 @@ curl -X PUT "http://localhost:3000/api/profile/session-01/status" \
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -4097,7 +4097,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -5069,7 +5069,7 @@ curl -X POST "http://localhost:3000/api/user/api-key" \
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -5330,7 +5330,7 @@ curl -X GET "http://localhost:3000/api/labels/session-01" \
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -5580,7 +5580,7 @@ Get all chats associated with a specific label
 {
   "success": true,
   "label": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   },
   "chats": [
     "string"
@@ -5766,7 +5766,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -5816,7 +5816,7 @@ curl -X PATCH "http://localhost:3000/api/notifications/read" \
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -5928,7 +5928,7 @@ curl -X POST "http://localhost:3000/api/settings/system" \
 ```json
 {
   "id": "default",
-  "appName": "WA-AKG",
+  "appName": "Velora CRM",
   "logoUrl": "https://example.com/logo.png",
   "timezone": "Asia/Jakarta"
 }
@@ -6013,7 +6013,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -6096,7 +6096,7 @@ Content-Type: application/json
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -6280,7 +6280,7 @@ curl -X POST "http://localhost:3000/api/contacts/session-01/628123456789@s.whats
   "status": true,
   "message": "Operation successful",
   "data": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   }
 }
 ```
@@ -6310,11 +6310,11 @@ curl -X POST "http://localhost:3000/api/contacts/session-01/628123456789@s.whats
   "status": "Connected",
   "userId": "string",
   "botConfig": {
-    "text": "Hello from WA-AKG!"
+    "text": "Hello from Velora CRM!"
   },
   "webhooks": [
     {
-      "text": "Hello from WA-AKG!"
+      "text": "Hello from Velora CRM!"
     }
   ],
   "_count": {

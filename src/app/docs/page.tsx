@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { DocsClient } from './docs-client';
 
 export const metadata = {
-    title: 'Public API Documentation - WA-AKG',
-    description: 'Complete API reference for WA-AKG WhatsApp Gateway',
+    title: 'Public API Documentation - Velora CRM',
+    description: 'Complete API reference for Velora CRM WhatsApp Gateway',
 };
 
 // Interface for Nested TOC
@@ -77,7 +77,7 @@ export default async function PublicDocsPage() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <span className="text-xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                            WA-AKG
+                            Velora CRM
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold tracking-wide border border-blue-200">
                             {version}

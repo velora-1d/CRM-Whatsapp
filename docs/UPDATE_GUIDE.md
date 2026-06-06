@@ -1,6 +1,6 @@
-# 🔄 WA-AKG Update Guide
+# 🔄 Velora CRM Update Guide
 
-Keep your **WA-AKG** instance up-to-date with the latest features, security patches, and performance improvements.
+Keep your **Velora CRM** instance up-to-date with the latest features, security patches, and performance improvements.
 
 ---
 

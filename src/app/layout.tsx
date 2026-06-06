@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WA-AKG | Premium WhatsApp Management",
+  title: "Velora CRM | Premium WhatsApp Management",
   description: "Next-generation WhatsApp Gateway & Management Dashboard",
   robots: {
     index: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",

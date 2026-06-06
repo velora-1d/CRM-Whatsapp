@@ -1,6 +1,6 @@
 # 🔐 Environment Variables Guide
 
-This document provides a comprehensive reference for all configuration options in **WA-AKG**.
+This document provides a comprehensive reference for all configuration options in **Velora CRM**.
 
 > [!WARNING]
 > Never commit your `.env` file to version control (Git). It contains sensitive credentials that could compromise your system.

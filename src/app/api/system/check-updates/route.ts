@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from "@/lib/api-auth";
 // For simplicity, we just check if a notification with this version title exists for the user.
 
 const REPO_OWNER = "mrifqidaffaaditya";
-const REPO_NAME = "WA-AKG";
+const REPO_NAME = "Velora CRM";
 
 import { NextRequest } from "next/server";
 

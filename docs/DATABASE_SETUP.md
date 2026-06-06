@@ -1,6 +1,6 @@
 # 🗄️ Database Setup Guide
 
-This guide will help you set up the database for **WA-AKG**. The project uses **Prisma ORM**, which supports PostgreSQL, MySQL, SQLite, and MongoDB.
+This guide will help you set up the database for **Velora CRM**. The project uses **Prisma ORM**, which supports PostgreSQL, MySQL, SQLite, and MongoDB.
 
 ## 1. Prerequisites
 
