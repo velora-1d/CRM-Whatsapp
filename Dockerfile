@@ -17,13 +17,13 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 # Copy production files
-COPY package*.json ./
-COPY node_modules ./node_modules
-COPY .next ./.next
-COPY src ./src
-COPY prisma ./prisma
-COPY public ./public
-COPY tsconfig.json ./
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/tsconfig.json ./
 
 ENV NODE_ENV=production
 ENV PORT=3003
