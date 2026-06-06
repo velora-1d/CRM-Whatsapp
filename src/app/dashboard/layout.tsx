@@ -1,4 +1,6 @@
 import { auth } from "@/lib/auth";
+
+export const dynamic = 'force-dynamic';
 import { Navbar } from "@/components/dashboard/navbar";
 import { SessionProvider } from "@/components/dashboard/session-provider";
 import { SidebarProvider } from "@/components/dashboard/sidebar-context";
@@ -17,9 +19,16 @@ export default async function DashboardLayout({
 }) {
     const session = await auth();
     // @ts-ignore
-    const systemConfig = await prisma.systemConfig.findUnique({ where: { id: "default" } });
-    const appName = systemConfig?.appName || "Velora CRM";
-    const registrationEnabled = systemConfig?.enableRegistration ?? true;
+    let appName = "Velora CRM";
+    let registrationEnabled = true;
+    try {
+        // @ts-ignore
+        const systemConfig = await prisma.systemConfig.findUnique({ where: { id: "default" } });
+        appName = systemConfig?.appName || "Velora CRM";
+        registrationEnabled = systemConfig?.enableRegistration ?? true;
+    } catch (e) {
+        // DB unreachable at build/request time — use safe defaults
+    }
 
     return (
         <SessionProvider>
