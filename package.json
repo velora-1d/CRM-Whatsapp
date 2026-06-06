@@ -88,5 +88,8 @@
     "wa-sticker-formatter": {
       "sharp": "$sharp"
     }
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
