@@ -205,7 +205,7 @@ export default function SessionDetailPage() {
     if (!session) return <div className="p-8">Session not found</div>;
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="space-y-6 w-full">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
                 <Button variant="ghost" asChild className="self-start">
                     <Link href="/dashboard/sessions">

@@ -77,5 +77,5 @@ Check the **Settings** page to customize:
 
 ---
 <div align="center">
-  **Version**: 1.5.3 | **Support**: [GitHub Issues](https://github.com/mrifqidaffaaditya/Velora CRM/issues)
+  **Version**: 1.5.3 | **Support**: [GitHub Issues](https://github.com/velora-1d/CRM-Whatsapp/issues)
 </div>

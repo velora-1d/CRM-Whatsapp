@@ -30,17 +30,22 @@ export function SidebarShell({ appName, userName, userEmail, version }: SidebarS
             <div className={`border-b border-border/30 transition-all duration-300 ${isCollapsed ? "px-3 py-4" : "px-5 py-5"}`}>
                 {isCollapsed ? (
                     <div className="flex justify-center">
-                        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                            {appName.charAt(0)}
+                        <div className="h-9 w-9 rounded-lg overflow-hidden border border-border/60 bg-white shadow-sm flex items-center justify-center">
+                            <img src="/logo.jpg" alt="Logo" className="h-full w-full object-cover" />
                         </div>
                     </div>
                 ) : (
-                    <>
-                        <h1 className="text-xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-500">
-                            {appName}
-                        </h1>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">WhatsApp Gateway</p>
-                    </>
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg overflow-hidden border border-border/60 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
+                            <img src="/logo.jpg" alt="Logo" className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <h1 className="text-base font-bold tracking-tight text-foreground truncate">
+                                {appName}
+                            </h1>
+                            <p className="text-[9px] text-muted-foreground font-medium truncate -mt-0.5">WhatsApp Gateway</p>
+                        </div>
+                    </div>
                 )}
             </div>
 

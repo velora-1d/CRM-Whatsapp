@@ -6,14 +6,14 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![Version](https://img.shields.io/badge/Version-1.3.0-blue?style=for-the-badge)](https://github.com/mrifqidaffaaditya/Velora CRM/releases)
-[![Beta Branch](https://img.shields.io/badge/Branch-Master-green?style=for-the-badge&logo=git)](https://github.com/mrifqidaffaaditya/Velora CRM)
+[![Version](https://img.shields.io/badge/Version-1.3.0-blue?style=for-the-badge)](https://github.com/velora-1d/CRM-Whatsapp/releases)
+[![Beta Branch](https://img.shields.io/badge/Branch-Master-green?style=for-the-badge&logo=git)](https://github.com/velora-1d/CRM-Whatsapp)
 
 **A professional, multi-session WhatsApp Gateway, Dashboard, and Automation System.**  
 Built with **Next.js 15**, **React**, and **Baileys** for high-performance messaging automation and real-time WhatsApp Bot Gateway services.
 
 > [!TIP]
-> **Looking for the latest features?** Check out the [beta branch](https://github.com/mrifqidaffaaditya/Velora CRM/tree/beta) or our [pre-releases](https://github.com/mrifqidaffaaditya/Velora CRM/releases) for experimental sources.
+> **Looking for the latest features?** Check out the [beta branch](https://github.com/velora-1d/CRM-Whatsapp/tree/beta) or our [pre-releases](https://github.com/velora-1d/CRM-Whatsapp/releases) for experimental sources.
 
 [Features](#-key-features) • [User Guide](docs/USER_GUIDE.md) • [API Documentation](docs/API_DOCUMENTATION.md) • [Database Setup](docs/DATABASE_SETUP.md) • [Installation](#-quick-installation)
 
@@ -112,8 +112,8 @@ Velora CRM natively supports **n8n**! You can build complex, no-code/low-code Wh
 ### 2. Setup (Standard Setup)
 ```bash
 # Clone and install
-git clone https://github.com/mrifqidaffaaditya/Velora CRM.git
-cd Velora CRM
+git clone https://github.com/velora-1d/CRM-Whatsapp.git
+cd CRM-Whatsapp
 npm install
 
 # Configure environment
@@ -204,6 +204,6 @@ curl -X POST http://localhost:3000/api/messages/session_01/62812345678@s.whatsap
 ---
 
 <div align="center">
-  Built with ❤️ by <a href="https://github.com/mrifqidaffaaditya">Aditya</a>  
+  Built with ❤️ by <a href="https://github.com/velora-1d">Velora</a>  
   Licensed under <a href="LICENSE">MIT</a>
 </div>

@@ -194,62 +194,70 @@ export function ChatList({ sessionId, onSelectChat, selectedJid }: ChatListProps
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            {/* Header */}
-            <div className="px-3 pt-3 pb-2 space-y-2 flex-shrink-0">
-                <div className="flex justify-between items-center">
-                    <h3 className="font-semibold text-base text-foreground">Chats</h3>
+        <div className="flex flex-col h-full overflow-hidden bg-background">
+            {/* WhatsApp Header bar */}
+            <div className="h-14 bg-slate-50 dark:bg-zinc-800/60 border-b border-border/20 px-4 flex justify-between items-center flex-shrink-0">
+                <div className="flex items-center gap-2.5">
+                    <Avatar className="h-8.5 w-8.5 border border-border/30">
+                        <AvatarImage src="/logo.jpg" className="object-cover" />
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">V</AvatarFallback>
+                    </Avatar>
+                    <span className="font-bold text-[14.5px] text-foreground tracking-tight">Chats</span>
+                </div>
+                <div className="flex items-center gap-1">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-lg"
+                        className="h-8.5 w-8.5 rounded-full text-muted-foreground hover:bg-muted/65"
                         onClick={() => setIsNewChatOpen(!isNewChatOpen)}
                     >
                         {isNewChatOpen ? (
-                            <X className="h-4 w-4" />
+                            <X className="h-4.5 w-4.5 text-foreground" />
                         ) : (
-                            <MessageSquarePlus className="h-4 w-4" />
+                            <MessageSquarePlus className="h-4.5 w-4.5 text-foreground" />
                         )}
                     </Button>
                 </div>
-
-                {/* Search */}
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                        placeholder="Search chats..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8 pl-8 text-sm bg-muted/50 border-0 rounded-lg focus-visible:ring-1"
-                    />
-                </div>
-
-                {/* New Chat Form */}
-                {isNewChatOpen && (
-                    <div className="p-2.5 bg-muted/30 rounded-lg space-y-2 border border-border/40">
-                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Phone Number</Label>
-                        <div className="flex gap-1.5">
-                            <Input
-                                placeholder="628123456789"
-                                value={newChatNumber}
-                                onChange={(e) => setNewChatNumber(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && handleStartNewChat()}
-                                className="h-8 text-sm"
-                            />
-                            <Button size="sm" className="h-8 px-3" onClick={handleStartNewChat}>Go</Button>
-                        </div>
-                    </div>
-                )}
             </div>
 
+            {/* WhatsApp Search Bar Section */}
+            <div className="px-3 py-2 bg-background flex-shrink-0 border-b border-border/10">
+                <div className="relative flex items-center bg-slate-100 dark:bg-zinc-800/40 rounded-lg px-2.5 py-1.5 h-8.5">
+                    <Search className="h-3.5 w-3.5 text-muted-foreground ml-0.5 flex-shrink-0" />
+                    <input
+                        placeholder="Search or start new chat"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-transparent text-xs border-0 focus:outline-none pl-2.5 placeholder:text-muted-foreground/80 text-foreground"
+                    />
+                </div>
+            </div>
+
+            {/* New Chat Form */}
+            {isNewChatOpen && (
+                <div className="px-3 py-2 bg-slate-50 dark:bg-zinc-800/20 border-b border-border/15 flex-shrink-0 space-y-2">
+                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Start chat with number</Label>
+                    <div className="flex gap-1.5">
+                        <Input
+                            placeholder="e.g., 628123456789"
+                            value={newChatNumber}
+                            onChange={(e) => setNewChatNumber(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleStartNewChat()}
+                            className="h-8.5 text-xs rounded-lg border-black dark:border-white/30 focus-visible:ring-primary/50"
+                        />
+                        <Button size="sm" className="h-8.5 px-3.5 font-semibold text-xs" onClick={handleStartNewChat}>Go</Button>
+                    </div>
+                </div>
+            )}
+
             {/* Chat List */}
-            <div className="flex-1 overflow-y-auto styled-scrollbar">
+            <div className="flex-1 overflow-y-auto styled-scrollbar divide-y divide-border/10">
                 {filteredChats.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                        <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                            <MessageCircle className="h-6 w-6 text-muted-foreground/50" />
+                    <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                        <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-zinc-800/50 flex items-center justify-center mb-3">
+                            <MessageCircle className="h-5.5 w-5.5 text-muted-foreground/40" />
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground/80">
                             {searchQuery ? "No chats match your search" : "No chats yet"}
                         </p>
                     </div>
@@ -261,34 +269,34 @@ export function ChatList({ sessionId, onSelectChat, selectedJid }: ChatListProps
                             <button
                                 key={chat.jid}
                                 className={cn(
-                                    "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 border-b border-border/20 overflow-hidden",
+                                    "w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-150 border-b border-border/10 overflow-hidden relative",
                                     isSelected
-                                        ? "bg-primary/8 border-l-2 border-l-primary"
-                                        : "hover:bg-muted/40 border-l-2 border-l-transparent"
+                                        ? "bg-slate-100 dark:bg-zinc-800"
+                                        : "hover:bg-slate-50 dark:hover:bg-zinc-900/40 bg-background"
                                 )}
-                                onClick={() => onSelectChat(chat.jid, displayName)}
+                                onClick={() => onSelectChat(chat.jid, displayName, chat.profilePic)}
                             >
-                                <Avatar className="h-10 w-10 flex-shrink-0">
+                                <Avatar className="h-10 w-10 flex-shrink-0 border border-border/20">
                                     <AvatarImage src={chat.profilePic || ""} />
-                                    <AvatarFallback className="text-xs font-medium bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary">
+                                    <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary">
                                         {displayName.slice(0, 2).toUpperCase()}
                                     </AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0 overflow-hidden">
-                                    <div className="flex justify-between items-baseline gap-2 overflow-hidden">
+                                    <div className="flex justify-between items-baseline gap-2 overflow-hidden mb-0.5">
                                         <h4 className={cn(
-                                            "text-sm truncate",
-                                            isSelected ? "font-semibold text-primary" : "font-medium text-foreground"
+                                            "text-xs truncate",
+                                            isSelected ? "font-bold text-primary" : "font-semibold text-foreground"
                                         )}>
                                             {displayName}
                                         </h4>
                                         {chat.lastMessage && (
-                                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                                            <span className="text-[9.5px] text-muted-foreground flex-shrink-0 font-medium">
                                                 {getTimeLabel(chat.lastMessage.timestamp)}
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                    <p className="text-xs text-muted-foreground/90 truncate leading-relaxed">
                                         {getMessagePreview(chat)}
                                     </p>
                                 </div>

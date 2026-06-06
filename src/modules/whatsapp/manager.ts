@@ -93,7 +93,10 @@ export class WhatsAppManager {
         const instance = this.sessions.get(sessionId);
         if (instance) {
             instance.isStopped = true; // Prevent auto-reconnect
-            instance.socket?.end(undefined);
+            try {
+                instance.socket?.end(undefined);
+            } catch (e) {}
+            instance.socket = null;
             instance.status = "STOPPED";
             this.io?.to(sessionId).emit("connection.update", { status: "STOPPED", qr: null });
             await prisma.session.update({
@@ -104,9 +107,10 @@ export class WhatsAppManager {
     }
 
     async startSession(sessionId: string) {
-        // If already running, do nothing
+        // If already running or starting, do nothing
         const existingInstance = this.sessions.get(sessionId);
-        if (existingInstance && existingInstance.status === "CONNECTED") {
+        if (existingInstance && (existingInstance.status === "CONNECTED" || existingInstance.socket)) {
+            logger.info("Manager", `Session ${sessionId} is already active or initializing. Skipping start.`);
             return;
         }
 
@@ -120,6 +124,7 @@ export class WhatsAppManager {
             this.sessions.set(sessionId, instance);
         }
 
+        instance.isStopped = false; // Reset stop state so it can connect/reconnect
         await instance.init();
     }
 

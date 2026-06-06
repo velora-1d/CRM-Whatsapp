@@ -292,7 +292,7 @@ export default function MediaPage() {
         collapsed.has(id) ? <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />;
 
     return (
-        <div className="space-y-4 max-w-6xl mx-auto">
+        <div className="space-y-6 w-full">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>

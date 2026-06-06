@@ -76,7 +76,7 @@ export default function PrivacyPage() {
 
                         <div className="mt-12 p-6 bg-blue-500/5 rounded-2xl border border-blue-500/10">
                             <p className="font-semibold mb-2">Need Further Details?</p>
-                            <p className="text-sm text-muted-foreground mb-0">If you have specific questions about data handling or wish to audit the code, please visit our <Link href="https://github.com/mrifqidaffaaditya/Velora CRM">GitHub Repository</Link>.</p>
+                            <p className="text-sm text-muted-foreground mb-0">If you have specific questions about data handling or wish to audit the code, please visit our <Link href="https://github.com/velora-1d">GitHub Repository</Link>.</p>
                         </div>
                     </div>
                 </div>

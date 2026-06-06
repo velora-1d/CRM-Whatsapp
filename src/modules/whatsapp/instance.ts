@@ -38,6 +38,19 @@ export class WhatsAppInstance {
     }
 
     async init() {
+        // Cleanup existing socket if any to prevent duplicate connections
+        if (this.socket) {
+            logger.warn("Instance", `Cleaning up existing socket for session ${this.sessionId} before re-initializing`);
+            try {
+                this.socket.ev.removeAllListeners("connection.update");
+                this.socket.ev.removeAllListeners("creds.update");
+                this.socket.end(undefined);
+            } catch (e) {
+                // ignore
+            }
+            this.socket = null;
+        }
+
         const sessionData = await prisma.session.findUnique({
             where: { sessionId: this.sessionId },
             include: { botConfig: true }
@@ -105,13 +118,17 @@ export class WhatsAppInstance {
             if (connection === "close") {
                 const code = (lastDisconnect?.error as any)?.output?.statusCode;
                 const isLoggedOut = code === DisconnectReason.loggedOut;
+                const isReplaced = code === DisconnectReason.connectionReplaced;
 
-                // Only reconnect if NOT logged out AND NOT explicitly stopped
-                const shouldReconnect = !isLoggedOut && !this.isStopped;
+                // Only reconnect if NOT logged out, NOT replaced, and NOT explicitly stopped
+                const shouldReconnect = !isLoggedOut && !isReplaced && !this.isStopped;
 
                 // Determine status based on reason
                 if (isLoggedOut) {
                     this.status = "LOGGED_OUT";
+                } else if (isReplaced) {
+                    this.status = "DISCONNECTED";
+                    logger.warn("Instance", `Session ${this.sessionId} connection replaced by another device.`);
                 } else if (this.isStopped) {
                     this.status = "STOPPED";
                 } else {

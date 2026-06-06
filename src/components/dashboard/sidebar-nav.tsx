@@ -126,7 +126,7 @@ export function SidebarNav() {
 
     return (
         <TooltipProvider delayDuration={0}>
-            <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden space-y-0.5 styled-scrollbar">
+            <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden space-y-0.5 no-scrollbar">
                 {navGroups.map((group) => {
                     const visibleItems = group.items.filter((item) => {
                         if (item.superadminOnly && userRole !== "SUPERADMIN") return false;

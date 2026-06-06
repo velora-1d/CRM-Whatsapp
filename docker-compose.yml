@@ -25,14 +25,14 @@ services:
     container_name: wa-akg-app
     restart: always
     ports:
-      - "3000:3000"
+      - "3003:3003"
     environment:
       - DATABASE_URL=mysql://root:rootpassword@db:3306/wa_akg
       - AUTH_SECRET=w6PO4cY5PgJ0VSipJHLK7z0PLx/tWCrYROqGDPIjsm8=
       - BASE_URL=http://localhost:3000
       - NEXTAUTH_URL=http://localhost:3000
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3003
       - HOSTNAME=0.0.0.0
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
       - NEXT_PUBLIC_API_URL=http://localhost:3000/api

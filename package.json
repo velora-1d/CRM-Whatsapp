@@ -61,6 +61,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "wa-sticker-formatter": "^4.4.4",
+    "whatsapp-rust-bridge": "^0.5.4",
     "zod": "^4.3.5"
   },
   "devDependencies": {

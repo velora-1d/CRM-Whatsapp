@@ -112,9 +112,14 @@ export function MobileNav({ appName = "Velora CRM" }: { appName?: string }) {
                 </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[85vw] sm:w-[320px] p-0 flex flex-col">
-                <SheetHeader className="px-5 py-4 text-left border-b border-slate-100">
-                    <SheetTitle className="text-xl font-bold text-slate-800">{appName}</SheetTitle>
-                    <SheetDescription className="text-[11px] text-slate-400 -mt-1">WhatsApp Gateway</SheetDescription>
+                <SheetHeader className="px-5 py-4 text-left border-b border-border flex flex-row items-center gap-3 space-y-0">
+                    <div className="h-10 w-10 rounded-lg overflow-hidden border border-border/60 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
+                        <img src="/logo.jpg" alt="Logo" className="h-full w-full object-cover" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <SheetTitle className="text-lg font-bold text-foreground truncate">{appName}</SheetTitle>
+                        <SheetDescription className="text-[10px] text-muted-foreground -mt-0.5 truncate">WhatsApp Gateway</SheetDescription>
+                    </div>
                 </SheetHeader>
 
                 <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-1">

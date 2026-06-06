@@ -41,19 +41,30 @@ export class ChatService {
         contacts.forEach(c => contactMap.set(c.jid, c));
         groups.forEach(g => contactMap.set(g.jid, { jid: g.jid, name: g.subject, notify: g.subject, profilePic: null }));
 
-        const chatList = await Promise.all(Array.from(allJids).map(async (originalJid) => {
+        // Fetch all latest messages for this session in one database query (replaces N+1 loop)
+        const lastMessagesList = await prisma.message.findMany({
+            where: { sessionId: dbSessionId },
+            orderBy: { timestamp: 'desc' },
+            select: { remoteJid: true, content: true, timestamp: true, type: true }
+        });
+
+        const lastMessageMap = new Map();
+        for (const msg of lastMessagesList) {
+            const normalized = normalizeJid(msg.remoteJid);
+            if (!lastMessageMap.has(normalized)) {
+                lastMessageMap.set(normalized, msg);
+            }
+            if (!lastMessageMap.has(msg.remoteJid)) {
+                lastMessageMap.set(msg.remoteJid, msg);
+            }
+        }
+
+        const chatList = Array.from(allJids).map((originalJid) => {
             const resolvedJid = jidMap.get(originalJid) || originalJid;
             const normalizedJid = normalizeJid(resolvedJid);
             const contactInfo = contactMap.get(originalJid) || contactMap.get(normalizedJid) || { jid: normalizedJid, name: null, notify: null, profilePic: null };
 
-            const lastMessage = await prisma.message.findFirst({
-                where: {
-                    sessionId: dbSessionId,
-                    OR: [{ remoteJid: originalJid }, { remoteJid: normalizedJid }]
-                },
-                orderBy: { timestamp: 'desc' },
-                select: { content: true, timestamp: true, type: true }
-            });
+            const lastMessage = lastMessageMap.get(originalJid) || lastMessageMap.get(normalizedJid);
 
             return {
                 ...contactInfo,
@@ -64,7 +75,7 @@ export class ChatService {
                     type: lastMessage.type
                 } : undefined
             };
-        }));
+        });
 
         // Deduplicate unified list
         const uniqueChats = new Map();

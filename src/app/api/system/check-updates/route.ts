@@ -6,8 +6,8 @@ import { getAuthenticatedUser } from "@/lib/api-auth";
 // We'll store the last check time or version in memory or rely on Notification existence
 // For simplicity, we just check if a notification with this version title exists for the user.
 
-const REPO_OWNER = "mrifqidaffaaditya";
-const REPO_NAME = "Velora CRM";
+const REPO_OWNER = "velora-1d";
+const REPO_NAME = "CRM-Whatsapp";
 
 import { NextRequest } from "next/server";
 

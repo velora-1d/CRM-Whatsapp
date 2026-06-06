@@ -179,7 +179,7 @@ export default function AutoReplyPage() {
 
     return (
         <SessionGuard>
-            <div className="max-w-5xl space-y-6">
+            <div className="w-full space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Auto Replies Builder</h1>

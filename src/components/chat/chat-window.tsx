@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Paperclip, ArrowLeft, Phone, MoreVertical } from "lucide-react";
+import { Send, Paperclip, ArrowLeft, Phone, MoreVertical, X, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Image as ImageIcon, FileText, Music, Sticker as StickerIcon, Video, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
-import { getChatMessages, sendChatMessage, sendMediaMessage } from "@/app/dashboard/chat/actions";
+import { getChatMessages, sendChatMessage, sendMediaMessage, getChatMetadata } from "@/app/dashboard/chat/actions";
 
 interface Message {
     keyId: string;
@@ -28,10 +28,11 @@ interface ChatWindowProps {
     sessionId: string;
     jid: string;
     name?: string;
+    profilePic?: string | null;
     onBack?: () => void;
 }
 
-export function ChatWindow({ sessionId, jid, name, onBack }: ChatWindowProps) {
+export function ChatWindow({ sessionId, jid, name, profilePic, onBack }: ChatWindowProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,6 +40,32 @@ export function ChatWindow({ sessionId, jid, name, onBack }: ChatWindowProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadType, setUploadType] = useState<string>("image");
     const [isDragging, setIsDragging] = useState(false);
+
+    // Info panel state
+    const [showInfoPanel, setShowInfoPanel] = useState(false);
+    const [metadata, setMetadata] = useState<any>(null);
+    const [loadingMetadata, setLoadingMetadata] = useState(false);
+    const [participantSearchQuery, setParticipantSearchQuery] = useState("");
+
+    const fetchMetadata = async () => {
+        setLoadingMetadata(true);
+        try {
+            const data = await getChatMetadata(sessionId, jid);
+            setMetadata(data);
+        } catch (error) {
+            console.error("Failed to load chat metadata", error);
+        } finally {
+            setLoadingMetadata(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showInfoPanel) {
+            fetchMetadata();
+        } else {
+            setMetadata(null);
+        }
+    }, [jid, showInfoPanel]);
 
     const scrollToBottom = (smooth = true) => {
         if (scrollRef.current) {
@@ -209,12 +236,14 @@ export function ChatWindow({ sessionId, jid, name, onBack }: ChatWindowProps) {
     const displayName = name || jid.split('@')[0];
 
     return (
-        <div 
-            className="flex flex-col h-full bg-muted/20 relative"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-        >
+        <div className="flex h-full w-full overflow-hidden bg-slate-100 dark:bg-zinc-950 relative">
+            {/* Main Chat Area */}
+            <div 
+                className="flex-1 flex flex-col h-full overflow-hidden relative"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
             {/* Drag & Drop Overlay */}
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary flex items-center justify-center flex-col gap-3 rounded-lg m-2">
@@ -226,27 +255,52 @@ export function ChatWindow({ sessionId, jid, name, onBack }: ChatWindowProps) {
             )}
 
             {/* Header */}
-            <div className="px-3 py-2.5 border-b bg-background/80 backdrop-blur-sm flex items-center gap-3 flex-shrink-0 z-10">
-                {onBack && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden flex-shrink-0 text-muted-foreground hover:text-foreground" onClick={onBack}>
-                        <ArrowLeft className="h-4 w-4" />
+            <div className="h-14 px-4 bg-slate-50 dark:bg-zinc-800/60 border-b border-border/20 flex items-center justify-between flex-shrink-0 z-10">
+                <div 
+                    className="flex items-center gap-3 min-w-0 cursor-pointer select-none flex-1 py-1 hover:opacity-90 active:opacity-80 transition-opacity"
+                    onClick={() => setShowInfoPanel(!showInfoPanel)}
+                >
+                    {onBack && (
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8.5 w-8.5 md:hidden flex-shrink-0 text-muted-foreground hover:text-foreground mr-1"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onBack();
+                            }}
+                        >
+                            <ArrowLeft className="h-4.5 w-4.5" />
+                        </Button>
+                    )}
+                    <Avatar className="h-9 w-9 flex-shrink-0 border border-border/30">
+                        <AvatarImage src={profilePic || ""} className="object-cover" />
+                        <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary">
+                            {displayName.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col min-w-0">
+                        <h3 className="text-xs font-bold text-foreground truncate leading-snug">{displayName}</h3>
+                        <p className="text-[10px] text-muted-foreground/90 truncate leading-none mt-0.5">
+                            {jid.endsWith("@g.us") ? "Group Chat" : jid.split("@")[0]}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-full text-muted-foreground hover:bg-muted/65">
+                        <Phone className="h-4 w-4" />
                     </Button>
-                )}
-                <Avatar className="h-9 w-9 flex-shrink-0">
-                    <AvatarFallback className="text-xs font-medium bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary">
-                        {displayName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground truncate">{displayName}</h3>
-                    <p className="text-[10px] text-muted-foreground truncate">{jid}</p>
+                    <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-full text-muted-foreground hover:bg-muted/65">
+                        <MoreVertical className="h-4 w-4" />
+                    </Button>
                 </div>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 styled-scrollbar relative z-0" style={{
-                backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.04) 1px, transparent 0)`,
-                backgroundSize: '24px 24px'
+            <div className="flex-1 overflow-y-auto px-4 py-4 styled-scrollbar relative z-0 bg-slate-100 dark:bg-zinc-950" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M50 50c0-5.522 4.478-10 10-10s10 4.478 10 10-4.478 10-10 10c0 5.522-4.478 10-10 10s-10-4.478-10-10 4.478-10 10-10zM10 10c0-5.522 4.478-10 10-10s10 4.478 10 10-4.478 10-10 10c0 5.522-4.478 10-10 10S0 25.522 0 20s4.478-10 10-10zm10 8c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8zm40 40c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8z'/%3E%3C/g%3E%3C/svg%3E")`,
+                backgroundRepeat: 'repeat'
             }}>
                 <div className="space-y-1.5 max-w-3xl mx-auto">
                     {messages.map((msg, idx) => {
@@ -265,10 +319,10 @@ export function ChatWindow({ sessionId, jid, name, onBack }: ChatWindowProps) {
                                 <div className={cn("flex", msg.fromMe ? "justify-end" : "justify-start")}>
                                     <div
                                         className={cn(
-                                            "max-w-[80%] sm:max-w-[70%] rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap shadow-sm",
+                                            "max-w-[75%] sm:max-w-[65%] rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap shadow-sm",
                                             msg.fromMe
-                                                ? "bg-primary text-primary-foreground rounded-br-md"
-                                                : "bg-background border border-border/40 rounded-bl-md"
+                                                ? "bg-primary text-primary-foreground rounded-tr-none"
+                                                : "bg-background border border-border/30 rounded-tl-none text-foreground"
                                         )}
                                     >
                                         {/* Sender Name (group messages) */}
@@ -373,57 +427,216 @@ export function ChatWindow({ sessionId, jid, name, onBack }: ChatWindowProps) {
             </div>
 
             {/* Input Area */}
-            <div className="px-3 py-2.5 bg-background/80 backdrop-blur-sm border-t flex-shrink-0">
-                <div className="flex items-center gap-2 max-w-3xl mx-auto">
+            <div className="px-4 py-3 bg-slate-50 dark:bg-zinc-800/60 border-t border-border/20 flex-shrink-0 z-10">
+                <div className="flex items-center gap-3 max-w-4xl mx-auto">
                     <input
                         type="file"
                         ref={fileInputRef}
                         className="hidden"
                         onChange={handleFileUpload}
                     />
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                <Paperclip className="h-4.5 w-4.5" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-44 p-1.5" side="top" align="start">
-                            <div className="flex flex-col gap-0.5">
-                                <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('image')}>
-                                    <ImageIcon className="h-3.5 w-3.5 text-blue-500" /> Image
+                    
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-full text-muted-foreground hover:bg-muted/80">
+                            <span className="text-[17px]">😊</span>
+                        </Button>
+                        
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-full text-muted-foreground hover:bg-muted/80">
+                                    <Paperclip className="h-4.5 w-4.5" />
                                 </Button>
-                                <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('video')}>
-                                    <Video className="h-3.5 w-3.5 text-purple-500" /> Video
-                                </Button>
-                                <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('audio')}>
-                                    <Music className="h-3.5 w-3.5 text-orange-500" /> Audio
-                                </Button>
-                                <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('document')}>
-                                    <FileText className="h-3.5 w-3.5 text-emerald-500" /> Document
-                                </Button>
-                                <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('sticker')}>
-                                    <StickerIcon className="h-3.5 w-3.5 text-pink-500" /> Sticker
-                                </Button>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-                    <Input
-                        placeholder="Type a message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                        className="flex-1 h-9 rounded-full bg-muted/40 border-border/30 text-sm focus-visible:ring-1"
-                    />
+                            </PopoverTrigger>
+                            <PopoverContent className="w-44 p-1.5" side="top" align="start">
+                                <div className="flex flex-col gap-0.5">
+                                    <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('image')}>
+                                        <ImageIcon className="h-3.5 w-3.5 text-blue-500" /> Image
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('video')}>
+                                        <Video className="h-3.5 w-3.5 text-purple-500" /> Video
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('audio')}>
+                                        <Music className="h-3.5 w-3.5 text-orange-500" /> Audio
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('document')}>
+                                        <FileText className="h-3.5 w-3.5 text-emerald-500" /> Document
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="justify-start gap-2 h-8 text-xs" onClick={() => triggerUpload('sticker')}>
+                                        <StickerIcon className="h-3.5 w-3.5 text-pink-500" /> Sticker
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    <div className="flex-1 bg-background dark:bg-zinc-900 border border-border/40 rounded-xl px-4 py-2 flex items-center min-w-0 shadow-inner focus-within:ring-1 focus-within:ring-primary/40 focus-within:border-primary/40 transition-all">
+                        <textarea
+                            placeholder="Type a message..."
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
+                            rows={1}
+                            className="w-full bg-transparent text-xs border-0 focus:outline-none resize-none placeholder:text-muted-foreground/80 text-foreground max-h-24 min-h-[18px] leading-relaxed"
+                        />
+                    </div>
+
                     <Button
                         onClick={handleSend}
                         disabled={!newMessage.trim()}
                         size="icon"
-                        className="h-9 w-9 rounded-full flex-shrink-0"
+                        className="h-8.5 w-8.5 rounded-full flex-shrink-0 shadow-sm bg-primary hover:bg-primary/95 text-white"
                     >
-                        <Send className="h-4 w-4" />
+                        <Send className="h-3.5 w-3.5" />
                     </Button>
                 </div>
             </div>
+            </div>
+
+            {/* Right-side Info Panel */}
+            {showInfoPanel && (
+                <div className="w-full md:w-80 lg:w-[340px] h-full border-l border-border/20 bg-background flex flex-col flex-shrink-0 absolute md:static right-0 top-0 bottom-0 z-40 shadow-xl md:shadow-none animate-in slide-in-from-right duration-200">
+                    {/* Panel Header */}
+                    <div className="h-14 px-4 bg-slate-50 dark:bg-zinc-800/60 border-b border-border/20 flex items-center gap-3 flex-shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8.5 w-8.5 rounded-full text-muted-foreground hover:bg-muted/65"
+                            onClick={() => setShowInfoPanel(false)}
+                        >
+                            <X className="h-4.5 w-4.5" />
+                        </Button>
+                        <h3 className="font-bold text-xs text-foreground tracking-tight">
+                            {jid.endsWith("@g.us") ? "Group info" : "Contact info"}
+                        </h3>
+                    </div>
+
+                    {/* Panel Content */}
+                    <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-4">
+                        {loadingMetadata && !metadata ? (
+                            <div className="space-y-4 py-8">
+                                <div className="h-28 w-28 rounded-full bg-muted/40 animate-pulse mx-auto" />
+                                <div className="h-4 w-32 bg-muted/40 animate-pulse mx-auto rounded-md" />
+                                <div className="h-3 w-40 bg-muted/40 animate-pulse mx-auto rounded-md" />
+                            </div>
+                        ) : metadata ? (
+                            <>
+                                {/* Large Profile Picture */}
+                                <div className="flex flex-col items-center text-center pb-4 border-b border-border/10">
+                                    <Avatar className="h-28 w-28 border-2 border-border/30 shadow-md">
+                                        <AvatarImage src={metadata.profilePic || ""} className="object-cover" />
+                                        <AvatarFallback className="text-xl font-bold bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary">
+                                            {displayName.slice(0, 2).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    
+                                    <h4 className="mt-3.5 text-sm font-bold text-foreground truncate max-w-full px-2">
+                                        {metadata.name || displayName}
+                                    </h4>
+                                    
+                                    <p className="text-[11px] text-muted-foreground/80 mt-1 select-all font-mono">
+                                        {metadata.phone || jid.split("@")[0]}
+                                    </p>
+                                </div>
+
+                                {/* About / Description Section */}
+                                <div className="bg-slate-50/50 dark:bg-zinc-900/30 p-3.5 rounded-xl border border-border/30 space-y-2">
+                                    <h5 className="text-[10px] font-bold text-primary uppercase tracking-wider">
+                                        {metadata.isGroup ? "Group description" : "About"}
+                                    </h5>
+                                    <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                                        {metadata.isGroup 
+                                            ? (metadata.description || "No description set")
+                                            : (metadata.verifiedName ? `Verified: ${metadata.verifiedName}` : "Active WhatsApp client")
+                                        }
+                                    </p>
+                                </div>
+
+                                {/* Group Details */}
+                                {metadata.isGroup && (
+                                    <div className="text-[10.5px] text-muted-foreground space-y-1 bg-slate-50/30 dark:bg-zinc-900/10 p-3 rounded-lg border border-border/20">
+                                        {metadata.creation && (
+                                            <p>Created: <span className="font-semibold text-foreground">{new Date(metadata.creation).toLocaleDateString([], { dateStyle: 'medium' })}</span></p>
+                                        )}
+                                        {metadata.ownerJid && (
+                                            <p className="truncate">Creator: <span className="font-semibold text-foreground font-mono select-all">{metadata.ownerJid.split("@")[0]}</span></p>
+                                        )}
+                                        <p>JID: <span className="font-semibold text-foreground font-mono select-all truncate block text-[9.5px] mt-0.5">{metadata.jid}</span></p>
+                                    </div>
+                                )}
+
+                                {/* Participants List */}
+                                {metadata.isGroup && (
+                                    <div className="space-y-3 pt-2">
+                                        <div className="flex items-center justify-between">
+                                            <h5 className="text-[10.5px] font-bold text-foreground uppercase tracking-wider">
+                                                Participants ({metadata.participants?.length || 0})
+                                            </h5>
+                                        </div>
+
+                                        {/* Participant Search */}
+                                        <div className="relative flex items-center bg-slate-100 dark:bg-zinc-800/40 rounded-lg px-2.5 py-1.5 h-8">
+                                            <Search className="h-3.5 w-3.5 text-muted-foreground mr-1.5 flex-shrink-0" />
+                                            <input
+                                                placeholder="Search participant..."
+                                                value={participantSearchQuery}
+                                                onChange={(e) => setParticipantSearchQuery(e.target.value)}
+                                                className="w-full bg-transparent text-[11px] border-0 focus:outline-none placeholder:text-muted-foreground/80 text-foreground"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5 max-h-64 overflow-y-auto styled-scrollbar divide-y divide-border/10 pr-1">
+                                            {metadata.participants
+                                                ?.filter((p: any) => {
+                                                    const query = participantSearchQuery.toLowerCase();
+                                                    const phone = p.phone || "";
+                                                    const name = (p.name || "").toLowerCase();
+                                                    return phone.includes(query) || name.includes(query);
+                                                })
+                                                .map((p: any) => (
+                                                    <div key={p.jid} className="flex items-center justify-between py-2 text-xs">
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <Avatar className="h-7 w-7 flex-shrink-0 border border-border/20">
+                                                                <AvatarImage src={p.profilePic || ""} className="object-cover" />
+                                                                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                                                    {(p.name || p.phone).slice(0, 2).toUpperCase()}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="font-semibold text-foreground truncate block">
+                                                                    {p.name || p.phone}
+                                                                </span>
+                                                                {p.name && (
+                                                                    <span className="text-[9.5px] text-muted-foreground font-mono block leading-none mt-0.5">
+                                                                        {p.phone}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {p.isAdmin && (
+                                                            <span className="text-[8.5px] font-bold text-orange-500 bg-orange-500/10 dark:bg-orange-500/20 px-1.5 py-0.5 rounded border border-orange-500/20 uppercase tracking-wide">
+                                                                Admin
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            }
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="text-center text-xs text-muted-foreground py-8">
+                                Failed to retrieve data
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
