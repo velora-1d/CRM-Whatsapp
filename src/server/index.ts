@@ -44,7 +44,9 @@ app.prepare().then(() => {
   waManager.setup(io);
   waManager.loadSessions();
 
-  // Start Scheduler
+  // Start Cron (node-cron based)
+  import("../lib/cron").then(m => m.initScheduler());
+  // Start Scheduler (custom interval based)
   import("../modules/whatsapp/scheduler").then(m => m.startScheduler());
 
   // Cloudflare 520 Fix: increase keep-alive timeout so Node doesn't kill idle connections that Cloudflare expects to reuse
