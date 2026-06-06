@@ -25,11 +25,13 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/next.config.ts ./
 
 ENV NODE_ENV=production
 ENV PORT=3003
 ENV HOSTNAME=0.0.0.0
 EXPOSE 3003
 
-CMD ["sh", "-c", "npx prisma db push && (if [ -n \"$ADMIN_EMAIL\" ] && [ -n \"$ADMIN_PASSWORD\" ]; then node scripts/setup-admin.js \"$ADMIN_EMAIL\" \"$ADMIN_PASSWORD\"; fi) && npx tsx src/server/index.ts"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma db push --skip-generate --accept-data-loss && (if [ -n \"$ADMIN_EMAIL\" ] && [ -n \"$ADMIN_PASSWORD\" ]; then node scripts/setup-admin.js \"$ADMIN_EMAIL\" \"$ADMIN_PASSWORD\"; fi) && ./node_modules/.bin/tsx src/server/index.ts"]
