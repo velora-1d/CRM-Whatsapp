@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 // Use nodejs runtime to allow Prisma access
 export const runtime = "nodejs";
+// Prevent evaluation at build time — DB not available during Docker build
+export const dynamic = "force-dynamic";
 
 // Image metadata
 export const size = {
