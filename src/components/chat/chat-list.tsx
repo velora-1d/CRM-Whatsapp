@@ -26,7 +26,7 @@ interface ChatContact {
 
 interface ChatListProps {
     sessionId: string;
-    onSelectChat: (jid: string, name?: string) => void;
+    onSelectChat: (jid: string, name?: string, profilePic?: string | null) => void;
     selectedJid?: string;
 }
 
