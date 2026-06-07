@@ -218,28 +218,37 @@ export default function SettingsPage() {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex-1 space-y-2 text-center sm:text-left">
+                                <div className="flex-1 space-y-2 text-center sm:text-left w-full">
                                     <h5 className="text-xs font-semibold text-foreground">Upload custom logo</h5>
                                     <p className="text-[10px] text-muted-foreground leading-relaxed">
                                         Recommend PNG or SVG with transparent background. Max size 2MB.
                                     </p>
-                                    {isSuperAdmin && (
-                                        <label className={`inline-flex h-9 px-4 rounded-xl border border-border bg-background hover:bg-muted text-xs font-bold items-center justify-center gap-2 cursor-pointer select-none transition-all ${logoUploading ? 'pointer-events-none opacity-50' : ''}`}>
-                                            {logoUploading ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                                            ) : (
-                                                <Upload className="h-3.5 w-3.5" />
-                                            )}
-                                            <span>{systemConfig.logoUrl ? "Change Logo" : "Upload Logo"}</span>
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={(e) => handleFileUpload(e, "logo")}
-                                                disabled={logoUploading}
-                                            />
-                                        </label>
-                                    )}
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-1">
+                                        {isSuperAdmin && (
+                                            <label className={`inline-flex h-9 px-4 rounded-xl border border-border bg-background hover:bg-muted text-xs font-bold items-center justify-center gap-2 cursor-pointer select-none transition-all flex-shrink-0 ${logoUploading ? 'pointer-events-none opacity-50' : ''}`}>
+                                                {logoUploading ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                                ) : (
+                                                    <Upload className="h-3.5 w-3.5" />
+                                                )}
+                                                <span>{systemConfig.logoUrl ? "Change Logo" : "Upload Logo"}</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => handleFileUpload(e, "logo")}
+                                                    disabled={logoUploading}
+                                                />
+                                            </label>
+                                        )}
+                                        <input
+                                            className="flex h-9 w-full rounded-xl border border-black dark:border-white/30 bg-background px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-all font-medium placeholder:text-muted-foreground/50 text-foreground"
+                                            placeholder="Or paste Logo URL (e.g. https://...)"
+                                            value={systemConfig.logoUrl}
+                                            onChange={(e) => setSystemConfig(prev => ({ ...prev, logoUrl: e.target.value }))}
+                                            disabled={!isSuperAdmin}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -267,28 +276,37 @@ export default function SettingsPage() {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex-1 space-y-2 text-center sm:text-left">
+                                <div className="flex-1 space-y-2 text-center sm:text-left w-full">
                                     <h5 className="text-xs font-semibold text-foreground">Upload custom favicon</h5>
                                     <p className="text-[10px] text-muted-foreground leading-relaxed">
                                         Requires .ico, .png, or .svg files. Max size 2MB.
                                     </p>
-                                    {isSuperAdmin && (
-                                        <label className={`inline-flex h-9 px-4 rounded-xl border border-border bg-background hover:bg-muted text-xs font-bold items-center justify-center gap-2 cursor-pointer select-none transition-all ${faviconUploading ? 'pointer-events-none opacity-50' : ''}`}>
-                                            {faviconUploading ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                                            ) : (
-                                                <Upload className="h-3.5 w-3.5" />
-                                            )}
-                                            <span>{systemConfig.faviconUrl ? "Change Favicon" : "Upload Favicon"}</span>
-                                            <input
-                                                type="file"
-                                                accept="image/x-icon,image/png,image/jpeg"
-                                                className="hidden"
-                                                onChange={(e) => handleFileUpload(e, "favicon")}
-                                                disabled={faviconUploading}
-                                            />
-                                        </label>
-                                    )}
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-1">
+                                        {isSuperAdmin && (
+                                            <label className={`inline-flex h-9 px-4 rounded-xl border border-border bg-background hover:bg-muted text-xs font-bold items-center justify-center gap-2 cursor-pointer select-none transition-all flex-shrink-0 ${faviconUploading ? 'pointer-events-none opacity-50' : ''}`}>
+                                                {faviconUploading ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                                ) : (
+                                                    <Upload className="h-3.5 w-3.5" />
+                                                )}
+                                                <span>{systemConfig.faviconUrl ? "Change Favicon" : "Upload Favicon"}</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/x-icon,image/png,image/jpeg"
+                                                    className="hidden"
+                                                    onChange={(e) => handleFileUpload(e, "favicon")}
+                                                    disabled={faviconUploading}
+                                                />
+                                            </label>
+                                        )}
+                                        <input
+                                            className="flex h-9 w-full rounded-xl border border-black dark:border-white/30 bg-background px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-all font-medium placeholder:text-muted-foreground/50 text-foreground"
+                                            placeholder="Or paste Favicon URL (e.g. /favicon.ico)"
+                                            value={systemConfig.faviconUrl}
+                                            onChange={(e) => setSystemConfig(prev => ({ ...prev, faviconUrl: e.target.value }))}
+                                            disabled={!isSuperAdmin}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
