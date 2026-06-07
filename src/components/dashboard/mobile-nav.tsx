@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, ChevronDown } from "lucide-react";
+import { Menu } from "lucide-react";
 import Link from "next/link";
 import {
     LayoutDashboard,
@@ -92,11 +92,10 @@ const navGroups: NavGroup[] = [
     },
 ];
 
-export function MobileNav({ appName = "Velora CRM" }: { appName?: string }) {
+export function MobileNav({ appName = "Velora CRM", logoUrl }: { appName?: string; logoUrl?: string }) {
     const [open, setOpen] = useState(false);
     const pathname = usePathname();
     const { data: session } = useSession();
-    // @ts-ignore
     const userRole = session?.user?.role;
 
     const isActive = (href: string) => {
@@ -114,7 +113,8 @@ export function MobileNav({ appName = "Velora CRM" }: { appName?: string }) {
             <SheetContent side="left" className="w-[85vw] sm:w-[320px] p-0 flex flex-col">
                 <SheetHeader className="px-5 py-4 text-left border-b border-border flex flex-row items-center gap-3 space-y-0">
                     <div className="h-10 w-10 rounded-lg overflow-hidden border border-border/60 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
-                        <img src="/logo.jpg" alt="Logo" className="h-full w-full object-cover" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={logoUrl || "/logo.jpg"} alt="Logo" className="h-full w-full object-cover" />
                     </div>
                     <div className="flex flex-col min-w-0">
                         <SheetTitle className="text-lg font-bold text-foreground truncate">{appName}</SheetTitle>

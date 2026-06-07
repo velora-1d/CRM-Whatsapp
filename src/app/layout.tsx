@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { TopLoader } from "@/components/ui/top-loader";
+import { prisma } from "@/lib/prisma";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,14 +15,31 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Velora CRM | Premium WhatsApp Management",
-  description: "Next-generation WhatsApp Gateway & Management Dashboard",
-  robots: {
-    index: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
-    follow: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let appName = "Velora CRM";
+  let faviconUrl = "/favicon.ico";
+  try {
+    const config = await prisma.systemConfig.findUnique({ where: { id: "default" } });
+    if (config) {
+      appName = config.appName || appName;
+      faviconUrl = config.faviconUrl || faviconUrl;
+    }
+  } catch {
+    // DB unreachable at build/request time — use defaults
+  }
+
+  return {
+    title: `${appName} | Premium WhatsApp Management`,
+    description: "Next-generation WhatsApp Gateway & Management Dashboard",
+    icons: {
+      icon: faviconUrl,
+    },
+    robots: {
+      index: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
+      follow: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true",
+    },
+  };
+}
 
 export default function RootLayout({
   children,

@@ -34,4 +34,6 @@ ENV PORT=3003
 ENV HOSTNAME=0.0.0.0
 EXPOSE 3003
 
+VOLUME ["/app/public/uploads"]
+
 CMD ["sh", "-c", "./node_modules/.bin/prisma db push --skip-generate --accept-data-loss && (if [ -n \"$ADMIN_EMAIL\" ] && [ -n \"$ADMIN_PASSWORD\" ]; then node scripts/setup-admin.js \"$ADMIN_EMAIL\" \"$ADMIN_PASSWORD\"; fi) && ./node_modules/.bin/tsx src/server/index.ts"]

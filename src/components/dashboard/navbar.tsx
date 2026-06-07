@@ -11,10 +11,11 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 
 interface NavbarProps {
     appName?: string;
+    logoUrl?: string;
 }
 
 interface Notification {
@@ -27,29 +28,28 @@ interface Notification {
     createdAt: string;
 }
 
-export function Navbar({ appName }: NavbarProps) {
+export function Navbar({ appName, logoUrl }: NavbarProps) {
     const router = useRouter();
     const { data: session } = useSession();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
-    const [socket, setSocket] = useState<Socket | null>(null);
-
-    const fetchNotifications = async () => {
-        try {
-            const res = await fetch("/api/notifications");
-            if (res.ok) {
-                const responseData = await res.json();
-                const items = responseData?.data || [];
-                setNotifications(items);
-                setUnreadCount(items.filter((n: Notification) => !n.read).length);
-            }
-        } catch (e) {
-            console.error("Failed to fetch notifications");
-        }
-    };
 
     useEffect(() => {
+        const fetchNotifications = async () => {
+            try {
+                const res = await fetch("/api/notifications");
+                if (res.ok) {
+                    const responseData = await res.json();
+                    const items = responseData?.data || [];
+                    setNotifications(items);
+                    setUnreadCount(items.filter((n: Notification) => !n.read).length);
+                }
+            } catch {
+                console.error("Failed to fetch notifications");
+            }
+        };
+
         // Initial fetch
         fetchNotifications();
 
@@ -82,13 +82,11 @@ export function Navbar({ appName }: NavbarProps) {
                 });
             });
 
-            setSocket(socketInstance);
-
             return () => {
                 socketInstance.disconnect();
             };
         }
-    }, [session?.user?.id]);
+    }, [session?.user?.id, router]);
 
     const markAsRead = async (id?: string) => {
         try {
@@ -107,7 +105,7 @@ export function Navbar({ appName }: NavbarProps) {
                     setUnreadCount(0);
                 }
             }
-        } catch (e) {
+        } catch {
             console.error("Failed to mark read");
         }
     };
@@ -125,7 +123,7 @@ export function Navbar({ appName }: NavbarProps) {
                 });
                 toast.success("Notification deleted");
             }
-        } catch (e) {
+        } catch {
             console.error("Failed to delete notification");
             toast.error("Failed to delete notification");
         }
@@ -140,7 +138,7 @@ export function Navbar({ appName }: NavbarProps) {
     return (
         <header className="bg-background/40 backdrop-blur-2xl border-b border-border/50 h-16 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 w-full shadow-sm">
             <div className="flex items-center gap-3">
-                <MobileNav appName={appName} />
+                <MobileNav appName={appName} logoUrl={logoUrl} />
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
@@ -178,7 +176,7 @@ export function Navbar({ appName }: NavbarProps) {
                                         <Inbox className="h-6 w-6 text-slate-400" />
                                     </div>
                                     <p className="text-sm font-medium">No new notifications</p>
-                                    <p className="text-xs text-muted-foreground max-w-[180px]">We'll notify you when something important arrives.</p>
+                                    <p className="text-xs text-muted-foreground max-w-[180px]">We&apos;ll notify you when something important arrives.</p>
                                 </div>
                             ) : (
                                 <div className="divide-y">

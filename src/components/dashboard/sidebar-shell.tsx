@@ -8,12 +8,13 @@ import { signOut } from "next-auth/react";
 
 interface SidebarShellProps {
     appName: string;
+    logoUrl?: string;
     userName?: string | null;
     userEmail?: string | null;
     version: string;
 }
 
-export function SidebarShell({ appName, userName, userEmail, version }: SidebarShellProps) {
+export function SidebarShell({ appName, logoUrl, userName, userEmail, version }: SidebarShellProps) {
     const { isCollapsed } = useSidebar();
 
     return (
@@ -31,13 +32,15 @@ export function SidebarShell({ appName, userName, userEmail, version }: SidebarS
                 {isCollapsed ? (
                     <div className="flex justify-center">
                         <div className="h-9 w-9 rounded-lg overflow-hidden border border-border/60 bg-white shadow-sm flex items-center justify-center">
-                            <img src="/logo.jpg" alt="Logo" className="h-full w-full object-cover" />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={logoUrl || "/logo.jpg"} alt="Logo" className="h-full w-full object-cover" />
                         </div>
                     </div>
                 ) : (
                     <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg overflow-hidden border border-border/60 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
-                            <img src="/logo.jpg" alt="Logo" className="h-full w-full object-cover" />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={logoUrl || "/logo.jpg"} alt="Logo" className="h-full w-full object-cover" />
                         </div>
                         <div className="flex flex-col min-w-0">
                             <h1 className="text-base font-bold tracking-tight text-foreground truncate">

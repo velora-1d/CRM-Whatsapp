@@ -18,15 +18,15 @@ export default async function DashboardLayout({
     children: React.ReactNode;
 }) {
     const session = await auth();
-    // @ts-ignore
     let appName = "Velora CRM";
     let registrationEnabled = true;
+    let logoUrl = "";
     try {
-        // @ts-ignore
         const systemConfig = await prisma.systemConfig.findUnique({ where: { id: "default" } });
         appName = systemConfig?.appName || "Velora CRM";
         registrationEnabled = systemConfig?.enableRegistration ?? true;
-    } catch (e) {
+        logoUrl = systemConfig?.logoUrl || "";
+    } catch {
         // DB unreachable at build/request time — use safe defaults
     }
 
@@ -48,6 +48,7 @@ export default async function DashboardLayout({
                     {/* Sidebar */}
                     <SidebarShell
                         appName={appName}
+                        logoUrl={logoUrl}
                         userName={session?.user?.name}
                         userEmail={session?.user?.email}
                         version={pkg.version}
@@ -55,7 +56,7 @@ export default async function DashboardLayout({
 
                     {/* Main Content */}
                     <div className="flex-1 flex flex-col overflow-hidden min-w-0 relative z-10">
-                        <Navbar appName={appName} />
+                        <Navbar appName={appName} logoUrl={logoUrl} />
                         <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 styled-scrollbar">
                             {children}
                         </main>

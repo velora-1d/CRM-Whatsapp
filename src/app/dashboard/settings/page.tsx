@@ -11,11 +11,12 @@ import { toast } from "sonner";
 
 export default function SettingsPage() {
     const { data: authSession } = useSession();
-    const isSuperAdmin = (authSession?.user as any)?.role === "SUPERADMIN";
+    const isSuperAdmin = (authSession?.user as { role?: string })?.role === "SUPERADMIN";
 
     const [systemConfig, setSystemConfig] = useState({
         appName: "Velora CRM",
         logoUrl: "",
+        faviconUrl: "",
         timezone: "Asia/Jakarta",
         enableRegistration: true
     });
@@ -46,7 +47,6 @@ export default function SettingsPage() {
                     setSystemConfig({
                         appName: data.appName || "Velora CRM",
                         logoUrl: data.logoUrl || "",
-                        // @ts-ignore
                         faviconUrl: data.faviconUrl || "/favicon.ico",
                         timezone: data.timezone || "Asia/Jakarta",
                         enableRegistration: data.enableRegistration !== undefined ? data.enableRegistration : true
@@ -85,9 +85,9 @@ export default function SettingsPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Validation: size limit 5MB
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error("File size must be less than 5MB");
+        // Validation: size limit 2MB
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error("File size must be less than 2MB");
             return;
         }
 
@@ -120,9 +120,10 @@ export default function SettingsPage() {
             } else {
                 throw new Error(data.message || "Failed to upload file");
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error(error);
-            toast.error(error.message || `Failed to upload ${type}`);
+            const errMsg = error instanceof Error ? error.message : "Failed to upload";
+            toast.error(errMsg || `Failed to upload ${type}`);
         } finally {
             if (isLogo) setLogoUploading(false);
             else setFaviconUploading(false);
@@ -199,6 +200,7 @@ export default function SettingsPage() {
                                 <div className="h-20 w-36 rounded-xl border border-dashed border-border/80 bg-background/80 flex items-center justify-center overflow-hidden flex-shrink-0 relative group">
                                     {systemConfig.logoUrl ? (
                                         <>
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img src={systemConfig.logoUrl} alt="Logo" className="max-h-16 max-w-[120px] object-contain rounded-lg transition-transform duration-300 group-hover:scale-105" />
                                             {isSuperAdmin && (
                                                 <button
@@ -219,7 +221,7 @@ export default function SettingsPage() {
                                 <div className="flex-1 space-y-2 text-center sm:text-left">
                                     <h5 className="text-xs font-semibold text-foreground">Upload custom logo</h5>
                                     <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                        Recommend PNG or SVG with transparent background. Max size 5MB.
+                                        Recommend PNG or SVG with transparent background. Max size 2MB.
                                     </p>
                                     {isSuperAdmin && (
                                         <label className={`inline-flex h-9 px-4 rounded-xl border border-border bg-background hover:bg-muted text-xs font-bold items-center justify-center gap-2 cursor-pointer select-none transition-all ${logoUploading ? 'pointer-events-none opacity-50' : ''}`}>
@@ -245,9 +247,10 @@ export default function SettingsPage() {
                             <Label className="text-xs font-bold text-foreground/80">Browser Favicon</Label>
                             <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl border border-border/60 bg-background/50 dark:bg-slate-900/30">
                                 <div className="h-20 w-20 rounded-xl border border-dashed border-border/80 bg-background/80 flex items-center justify-center overflow-hidden flex-shrink-0 relative group">
-                                    {(systemConfig as any).faviconUrl ? (
+                                    {systemConfig.faviconUrl ? (
                                         <>
-                                            <img src={(systemConfig as any).faviconUrl} alt="Favicon" className="h-10 w-10 object-contain rounded transition-transform duration-300 group-hover:scale-105" />
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={systemConfig.faviconUrl} alt="Favicon" className="h-10 w-10 object-contain rounded transition-transform duration-300 group-hover:scale-105" />
                                             {isSuperAdmin && (
                                                 <button
                                                     onClick={() => setSystemConfig(prev => ({ ...prev, faviconUrl: "" }))}
@@ -276,7 +279,7 @@ export default function SettingsPage() {
                                             ) : (
                                                 <Upload className="h-3.5 w-3.5" />
                                             )}
-                                            <span>{(systemConfig as any).faviconUrl ? "Change Favicon" : "Upload Favicon"}</span>
+                                            <span>{systemConfig.faviconUrl ? "Change Favicon" : "Upload Favicon"}</span>
                                             <input
                                                 type="file"
                                                 accept="image/x-icon,image/png,image/jpeg"
@@ -364,7 +367,7 @@ export default function SettingsPage() {
                                 } else {
                                     toast.error(data.message || "Failed to check updates");
                                 }
-                            } catch (e) {
+                            } catch {
                                 toast.error("Error checking updates");
                             } finally {
                                 setSystemLoading(false);

@@ -49,7 +49,7 @@ services:
         condition: service_healthy
     volumes:
       - app_data:/app/data
-      - uploads_data:/app/uploads
+      - uploads_data:/app/public/uploads
 
 volumes:
   mysql_data:
