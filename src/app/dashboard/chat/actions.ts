@@ -40,10 +40,31 @@ export async function getChatMessages(sessionId: string, jid: string) {
 
     const messages = await ChatService.getMessages(session.id, jid, 100);
 
-    return messages.map(msg => ({
-        ...msg,
-        timestamp: msg.timestamp.toISOString()
-    }));
+    // Fetch contacts to map sender names dynamically
+    const contacts = await prisma.contact.findMany({
+        where: { sessionId: session.id },
+        select: { jid: true, name: true, notify: true }
+    });
+
+    const contactMap = new Map(contacts.map(c => [c.jid, c.name || c.notify]));
+
+    return messages.map(msg => {
+        const senderJid = msg.senderJid;
+        let senderName = msg.pushName || "";
+        if (senderJid) {
+            const savedName = contactMap.get(senderJid);
+            if (savedName) {
+                senderName = savedName;
+            } else if (!senderName) {
+                senderName = `+${senderJid.split('@')[0]}`;
+            }
+        }
+        return {
+            ...msg,
+            senderName,
+            timestamp: msg.timestamp.toISOString()
+        };
+    });
 }
 
 // Send a basic text message

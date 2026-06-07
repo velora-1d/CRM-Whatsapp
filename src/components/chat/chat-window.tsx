@@ -20,6 +20,8 @@ interface Message {
     type: string;
     status: string;
     pushName?: string;
+    senderJid?: string;
+    senderName?: string;
     mediaUrl?: string;
     remoteJid?: string;
 }
@@ -326,9 +328,9 @@ export function ChatWindow({ sessionId, jid, name, profilePic, onBack }: ChatWin
                                         )}
                                     >
                                         {/* Sender Name (group messages) */}
-                                        {!msg.fromMe && jid.endsWith("@g.us") && msg.pushName && (
+                                        {!msg.fromMe && jid.endsWith("@g.us") && (
                                             <span className="text-[10px] font-semibold text-primary block mb-0.5">
-                                                {msg.pushName}
+                                                {msg.senderName || msg.pushName || (msg.senderJid ? `+${msg.senderJid.split('@')[0]}` : "Anggota Grup")}
                                             </span>
                                         )}
 
